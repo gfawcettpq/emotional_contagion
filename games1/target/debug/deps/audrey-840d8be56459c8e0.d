@@ -1,0 +1,9 @@
+/Users/graemefawcett/working/emotional_contagion/games1/target/debug/deps/libaudrey-840d8be56459c8e0.rmeta: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/read.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/write.rs
+
+/Users/graemefawcett/working/emotional_contagion/games1/target/debug/deps/libaudrey-840d8be56459c8e0.rlib: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/read.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/write.rs
+
+/Users/graemefawcett/working/emotional_contagion/games1/target/debug/deps/audrey-840d8be56459c8e0.d: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/read.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/write.rs
+
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/lib.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/read.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/audrey-0.3.0/src/write.rs:

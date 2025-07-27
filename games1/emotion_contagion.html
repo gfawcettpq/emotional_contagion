@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌊 Emotion Contagion - Conway's Game of Life</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #2e3440;
+            color: #e5e9f0;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        .toolbox {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: rgba(59, 66, 82, 0.95);
+            border: 2px solid #434c5e;
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 1000;
+        }
+        
+        .toolbox-title {
+            color: #88c0d0;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .character-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        
+        .character {
+            background: #434c5e;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            cursor: grab;
+            transition: all 0.2s ease;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .character:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .character:active {
+            cursor: grabbing;
+        }
+        
+        .character-symbol {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .character-name {
+            font-size: 12px;
+            color: #e5e9f0;
+        }
+        
+        .stats {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(46, 52, 64, 0.9);
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #434c5e;
+            font-size: 14px;
+            z-index: 1000;
+            min-width: 400px;
+        }
+        
+        .stats-title {
+            color: #88c0d0;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(46, 52, 64, 0.9);
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #434c5e;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .dragging-character {
+            position: fixed;
+            pointer-events: none;
+            z-index: 2000;
+            background: rgba(59, 66, 82, 0.9);
+            border: 2px solid #88c0d0;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            font-size: 20px;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="stats">
+        <div class="stats-title">🌊 Emotion Contagion - Conway's Game of Life</div>
+        <div id="stats-content">
+            Alive: 0 | Emotions: 0 | Updates: 0 | Status: RUNNING
+        </div>
+    </div>
+    
+    <div class="toolbox">
+        <div class="toolbox-title">🎭 Emotion Characters</div>
+        <div class="character-grid" id="character-grid">
+            <!-- Characters will be populated by JavaScript -->
+        </div>
+    </div>
+    
+    <div class="controls">
+        <strong>Controls:</strong><br>
+        SPACE: Pause/Resume | R: Randomize | C: Clear | H: Help<br>
+        Drag emotions from toolbox to grid
+    </div>
+    
+    <div id="dragging-character" class="dragging-character" style="display: none;"></div>
+
+    <script>
+        // Nord color palette
+        const COLORS = {
+            background: '#2e3440',
+            panel_bg: '#3b4252',
+            panel_border: '#434c5e',
+            text_primary: '#e5e9f0',
+            text_secondary: '#b4b8c5',
+            accent: '#88c0d0',
+            joy: '#a3be8c',
+            sadness: '#5e81ac',
+            anger: '#bf616a',
+            fear: '#b48ead',
+            disgust: '#ebcb8b',
+            anxiety: '#a3be8c',
+            love: '#d8dee9',
+            envy: '#5e81ac',
+            embarrassment: '#b48ead'
+        };
+
+        // Emotion characters
+        const CHARACTERS = [
+            { name: 'Joy', emotion: 'joy', color: COLORS.joy, symbol: 'J' },
+            { name: 'Sadness', emotion: 'sadness', color: COLORS.sadness, symbol: 'S' },
+            { name: 'Anger', emotion: 'anger', color: COLORS.anger, symbol: 'A' },
+            { name: 'Fear', emotion: 'fear', color: COLORS.fear, symbol: 'F' },
+            { name: 'Disgust', emotion: 'disgust', color: COLORS.disgust, symbol: 'D' },
+            { name: 'Anxiety', emotion: 'anxiety', color: COLORS.anxiety, symbol: 'X' },
+            { name: 'Love', emotion: 'love', color: COLORS.love, symbol: 'L' },
+            { name: 'Envy', emotion: 'envy', color: COLORS.envy, symbol: 'E' },
+            { name: 'Embarrassment', emotion: 'embarrassment', color: COLORS.embarrassment, symbol: 'B' }
+        ];
+
+        class EmotionContagion {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.setupCanvas();
+                
+                this.cellSize = 4; // Larger cells for better performance
+                this.gridWidth = Math.floor(this.canvas.width / this.cellSize);
+                this.gridHeight = Math.floor(this.canvas.height / this.cellSize);
+                
+                // Use efficient data structures
+                this.aliveCells = new Set();
+                this.emotions = new Map();
+                this.intensities = new Map();
+                
+                this.paused = false;
+                this.updateCount = 0;
+                this.lastUpdate = performance.now();
+                
+                // Performance limits
+                this.maxCells = 30000; // Lower limit for better performance
+                this.cleanupThreshold = 0.1; // Remove cells below this intensity
+                
+                // Drag and drop
+                this.dragging = null;
+                this.dragOffset = { x: 0, y: 0 };
+                
+                this.setupUI();
+                this.setupEventListeners();
+                this.addInitialSources();
+                this.gameLoop();
+                
+                console.log(`🌊 Game initialized: ${this.gridWidth}x${this.gridHeight} grid, ${this.cellSize}px cells`);
+            }
+            
+            setupCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.ctx.imageSmoothingEnabled = false;
+            }
+            
+            setupUI() {
+                const characterGrid = document.getElementById('character-grid');
+                CHARACTERS.forEach(char => {
+                    const div = document.createElement('div');
+                    div.className = 'character';
+                    div.style.borderColor = char.color;
+                    div.innerHTML = `
+                        <div class="character-symbol" style="color: ${char.color}">${char.symbol}</div>
+                        <div class="character-name">${char.name}</div>
+                    `;
+                    div.dataset.emotion = char.emotion;
+                    characterGrid.appendChild(div);
+                });
+            }
+            
+            setupEventListeners() {
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            this.paused = !this.paused;
+                            console.log(`⏯️ Game ${this.paused ? 'PAUSED' : 'RESUMED'}`);
+                            break;
+                        case 'KeyR':
+                            this.randomizeGrid();
+                            console.log('🎲 Grid randomized');
+                            break;
+                        case 'KeyC':
+                            this.clearGrid();
+                            console.log('🗑️ Grid cleared');
+                            break;
+                        case 'KeyH':
+                            this.showHelp();
+                            break;
+                        case 'Escape':
+                            if (this.dragging) {
+                                this.stopDrag();
+                            }
+                            break;
+                    }
+                });
+                
+                // Mouse controls for drag and drop
+                document.addEventListener('mousedown', (e) => {
+                    const character = e.target.closest('.character');
+                    if (character) {
+                        this.startDrag(character, e);
+                    }
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (this.dragging) {
+                        this.updateDrag(e);
+                    }
+                });
+                
+                document.addEventListener('mouseup', (e) => {
+                    if (this.dragging) {
+                        this.dropEmotion(e);
+                    }
+                });
+                
+                // Prevent context menu
+                document.addEventListener('contextmenu', e => e.preventDefault());
+                
+                // Handle window resize
+                window.addEventListener('resize', () => {
+                    this.setupCanvas();
+                    this.gridWidth = Math.floor(this.canvas.width / this.cellSize);
+                    this.gridHeight = Math.floor(this.canvas.height / this.cellSize);
+                });
+            }
+            
+            startDrag(characterElement, event) {
+                const emotion = characterElement.dataset.emotion;
+                const character = CHARACTERS.find(c => c.emotion === emotion);
+                if (!character) return;
+                
+                this.dragging = character;
+                const rect = characterElement.getBoundingClientRect();
+                this.dragOffset = {
+                    x: event.clientX - rect.left - rect.width / 2,
+                    y: event.clientY - rect.top - rect.height / 2
+                };
+                
+                const dragElement = document.getElementById('dragging-character');
+                dragElement.innerHTML = `<div style="color: ${character.color}">${character.symbol}</div>`;
+                dragElement.style.display = 'block';
+                this.updateDrag(event);
+                
+                console.log(`🎭 Started dragging ${character.name}`);
+            }
+            
+            updateDrag(event) {
+                if (!this.dragging) return;
+                
+                const dragElement = document.getElementById('dragging-character');
+                dragElement.style.left = `${event.clientX - this.dragOffset.x}px`;
+                dragElement.style.top = `${event.clientY - this.dragOffset.y}px`;
+            }
+            
+            dropEmotion(event) {
+                if (!this.dragging) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                
+                if (x >= 0 && x < this.canvas.width && y >= 0 && y < this.canvas.height) {
+                    this.addEmotionSource(this.dragging.emotion, x, y);
+                    console.log(`🎭 Dropped ${this.dragging.name} at (${Math.floor(x)}, ${Math.floor(y)})`);
+                }
+                
+                this.stopDrag();
+            }
+            
+            stopDrag() {
+                this.dragging = null;
+                document.getElementById('dragging-character').style.display = 'none';
+            }
+            
+            addEmotionSource(emotion, x, y) {
+                const gridX = Math.floor(x / this.cellSize);
+                const gridY = Math.floor(y / this.cellSize);
+                
+                if (gridX >= 0 && gridX < this.gridWidth && gridY >= 0 && gridY < this.gridHeight) {
+                    const key = `${gridX},${gridY}`;
+                    this.aliveCells.add(key);
+                    this.emotions.set(key, emotion);
+                    this.intensities.set(key, 1.0);
+                }
+            }
+            
+            addInitialSources() {
+                this.addEmotionSource('joy', 100, 100);
+                this.addEmotionSource('sadness', 300, 200);
+                this.addEmotionSource('anger', 200, 300);
+            }
+            
+            countNeighbors(x, y) {
+                let count = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        if (nx >= 0 && nx < this.gridWidth && ny >= 0 && ny < this.gridHeight) {
+                            if (this.aliveCells.has(`${nx},${ny}`)) {
+                                count++;
+                            }
+                        }
+                    }
+                }
+                return count;
+            }
+            
+            getNeighborEmotions(x, y) {
+                const emotions = [];
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        const key = `${nx},${ny}`;
+                        if (nx >= 0 && nx < this.gridWidth && ny >= 0 && ny < this.gridHeight) {
+                            if (this.aliveCells.has(key) && this.emotions.has(key)) {
+                                const intensity = this.intensities.get(key) || 0;
+                                if (intensity > this.cleanupThreshold) {
+                                    emotions.push({
+                                        emotion: this.emotions.get(key),
+                                        intensity: intensity
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                return emotions;
+            }
+            
+            getDominantEmotion(emotions) {
+                if (emotions.length === 0) return null;
+                
+                const emotionCounts = {};
+                let totalIntensity = 0;
+                
+                emotions.forEach(({ emotion, intensity }) => {
+                    if (!emotionCounts[emotion]) {
+                        emotionCounts[emotion] = 0;
+                    }
+                    emotionCounts[emotion] += intensity;
+                    totalIntensity += intensity;
+                });
+                
+                let maxEmotion = null;
+                let maxIntensity = 0;
+                
+                Object.entries(emotionCounts).forEach(([emotion, intensity]) => {
+                    if (intensity > maxIntensity) {
+                        maxEmotion = emotion;
+                        maxIntensity = intensity;
+                    }
+                });
+                
+                return { emotion: maxEmotion, intensity: maxIntensity };
+            }
+            
+            updateGrid() {
+                if (this.aliveCells.size > this.maxCells) {
+                    this.cleanupCells();
+                }
+                
+                const newAliveCells = new Set();
+                const newEmotions = new Map();
+                const newIntensities = new Map();
+                
+                // Get all cells to check (alive cells and their neighbors)
+                const cellsToCheck = new Set();
+                
+                this.aliveCells.forEach(cellKey => {
+                    const [x, y] = cellKey.split(',').map(Number);
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (nx >= 0 && nx < this.gridWidth && ny >= 0 && ny < this.gridHeight) {
+                                cellsToCheck.add(`${nx},${ny}`);
+                            }
+                        }
+                    }
+                });
+                
+                cellsToCheck.forEach(cellKey => {
+                    const [x, y] = cellKey.split(',').map(Number);
+                    const neighbors = this.countNeighbors(x, y);
+                    const currentAlive = this.aliveCells.has(cellKey);
+                    
+                    // Conway's Game of Life rules
+                    let alive = false;
+                    if (currentAlive) {
+                        alive = neighbors === 2 || neighbors === 3;
+                    } else {
+                        alive = neighbors === 3;
+                    }
+                    
+                    if (alive) {
+                        newAliveCells.add(cellKey);
+                        
+                        // Emotion spreading with decay
+                        let emotion = this.emotions.get(cellKey);
+                        let intensity = (this.intensities.get(cellKey) || 0) * 0.85; // Faster decay for performance
+                        
+                        // Get neighbor emotions
+                        const neighborEmotions = this.getNeighborEmotions(x, y);
+                        if (neighborEmotions.length > 0) {
+                            const dominant = this.getDominantEmotion(neighborEmotions);
+                            if (dominant && dominant.emotion) {
+                                emotion = dominant.emotion;
+                                intensity = Math.min(1.0, intensity + dominant.intensity * 0.3);
+                            }
+                        }
+                        
+                        // Only keep cells with significant intensity
+                        if (intensity > this.cleanupThreshold) {
+                            newEmotions.set(cellKey, emotion);
+                            newIntensities.set(cellKey, intensity);
+                        }
+                    }
+                });
+                
+                this.aliveCells = newAliveCells;
+                this.emotions = newEmotions;
+                this.intensities = newIntensities;
+                this.updateCount++;
+            }
+            
+            cleanupCells() {
+                // Remove weakest cells to maintain performance
+                const cellsWithIntensity = Array.from(this.aliveCells).map(key => ({
+                    key,
+                    intensity: this.intensities.get(key) || 0
+                }));
+                
+                cellsWithIntensity.sort((a, b) => b.intensity - a.intensity);
+                const keepCount = Math.floor(this.maxCells * 0.8);
+                const toKeep = cellsWithIntensity.slice(0, keepCount);
+                
+                this.aliveCells.clear();
+                const newEmotions = new Map();
+                const newIntensities = new Map();
+                
+                toKeep.forEach(({ key }) => {
+                    this.aliveCells.add(key);
+                    if (this.emotions.has(key)) {
+                        newEmotions.set(key, this.emotions.get(key));
+                    }
+                    if (this.intensities.has(key)) {
+                        newIntensities.set(key, this.intensities.get(key));
+                    }
+                });
+                
+                this.emotions = newEmotions;
+                this.intensities = newIntensities;
+                
+                console.log(`🧹 Cleaned up cells: ${cellsWithIntensity.length} -> ${toKeep.length}`);
+            }
+            
+            randomizeGrid() {
+                this.clearGrid();
+                
+                // Add random cells
+                const cellCount = Math.min(1000, this.maxCells / 10);
+                for (let i = 0; i < cellCount; i++) {
+                    const x = Math.floor(Math.random() * this.gridWidth);
+                    const y = Math.floor(Math.random() * this.gridHeight);
+                    const emotion = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].emotion;
+                    
+                    const key = `${x},${y}`;
+                    this.aliveCells.add(key);
+                    this.emotions.set(key, emotion);
+                    this.intensities.set(key, Math.random() * 0.5 + 0.5);
+                }
+            }
+            
+            clearGrid() {
+                this.aliveCells.clear();
+                this.emotions.clear();
+                this.intensities.clear();
+                this.updateCount = 0;
+            }
+            
+            showHelp() {
+                alert(`🌊 Emotion Contagion - Conway's Game of Life
+
+HOW TO PLAY:
+• Drag emotions from the toolbox to the grid
+• Watch emotions spread through cellular automata
+• Each cell follows Conway's Game of Life rules
+
+CONTROLS:
+• SPACE: Pause/Resume
+• R: Randomize grid
+• C: Clear grid
+• Drag emotions to add sources
+
+RULES:
+• Live cells with 2-3 neighbors survive
+• Dead cells with exactly 3 neighbors become alive
+• Emotions spread to neighboring cells and decay over time`);
+            }
+            
+            render() {
+                // Clear with background color
+                this.ctx.fillStyle = COLORS.background;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw alive cells with emotion colors
+                this.aliveCells.forEach(cellKey => {
+                    const [x, y] = cellKey.split(',').map(Number);
+                    const emotion = this.emotions.get(cellKey);
+                    const intensity = this.intensities.get(cellKey) || 0;
+                    
+                    if (emotion && intensity > this.cleanupThreshold) {
+                        const color = COLORS[emotion];
+                        if (color) {
+                            // Convert hex to RGB and apply intensity
+                            const hex = color.replace('#', '');
+                            const r = parseInt(hex.substr(0, 2), 16);
+                            const g = parseInt(hex.substr(2, 2), 16);
+                            const b = parseInt(hex.substr(4, 2), 16);
+                            
+                            const brightness = 0.3 + (intensity * 0.7);
+                            this.ctx.fillStyle = `rgb(${Math.floor(r * brightness)}, ${Math.floor(g * brightness)}, ${Math.floor(b * brightness)})`;
+                            
+                            this.ctx.fillRect(
+                                x * this.cellSize,
+                                y * this.cellSize,
+                                this.cellSize,
+                                this.cellSize
+                            );
+                        }
+                    }
+                });
+                
+                // Update stats
+                const emotionCount = this.emotions.size;
+                const statusText = `Alive: ${this.aliveCells.size} | Emotions: ${emotionCount} | Updates: ${this.updateCount} | Status: ${this.paused ? 'PAUSED' : 'RUNNING'}`;
+                document.getElementById('stats-content').textContent = statusText;
+            }
+            
+            gameLoop() {
+                const now = performance.now();
+                
+                if (!this.paused && now - this.lastUpdate > 50) { // ~20 FPS for smoother performance
+                    this.updateGrid();
+                    this.lastUpdate = now;
+                }
+                
+                this.render();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        // Start the game when page loads
+        window.addEventListener('load', () => {
+            new EmotionContagion();
+        });
+    </script>
+</body>
+</html>
