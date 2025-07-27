@@ -1,0 +1,193 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Development Claims",
+  "description": "Structured claims that AI must make about development progress",
+  "type": "object",
+  "required": ["claim_metadata", "component_claims", "readiness_assessment"],
+  "properties": {
+    "claim_metadata": {
+      "type": "object",
+      "required": ["ai_agent", "phase", "confidence_level", "timestamp"],
+      "properties": {
+        "ai_agent": {
+          "type": "string",
+          "description": "AI agent identifier making the claims"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["specs", "test", "implementation"],
+          "description": "Current development phase"
+        },
+        "confidence_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "AI confidence in claims (1=low, 10=high)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When claims were made"
+        }
+      }
+    },
+    "component_claims": {
+      "type": "object",
+      "description": "Specific quantifiable claims about development components",
+      "properties": {
+        "bdd_coverage": {
+          "type": "object",
+          "properties": {
+            "feature_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of BDD feature files"
+            },
+            "scenarios": {
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Total number of scenarios across all features"
+            },
+            "step_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of step definition files"
+            }
+          }
+        },
+        "unit_tests": {
+          "type": "object",
+          "properties": {
+            "total_test_functions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total number of unit test functions"
+            },
+            "test_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unit test files"
+            },
+            "mock_objects": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of mock objects created"
+            }
+          }
+        },
+        "integration_tests": {
+          "type": "object",
+          "properties": {
+            "integration_scenarios": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of integration test scenarios"
+            },
+            "component_interactions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of component interaction tests"
+            }
+          }
+        },
+        "performance_tests": {
+          "type": "object",
+          "properties": {
+            "benchmark_functions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of performance benchmark functions"
+            },
+            "load_test_scenarios": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of load testing scenarios"
+            }
+          }
+        },
+        "coverage_report": {
+          "type": "object",
+          "properties": {
+            "claimed_coverage_percentage": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Claimed test coverage percentage"
+            },
+            "report_size_lines": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Size of coverage report in lines"
+            },
+            "uncovered_functions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of functions without test coverage"
+            }
+          }
+        },
+        "implementation_claims": {
+          "type": "object",
+          "properties": {
+            "source_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of implementation source files"
+            },
+            "total_functions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total number of implemented functions"
+            },
+            "lines_of_code": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total lines of implementation code"
+            }
+          }
+        }
+      }
+    },
+    "readiness_assessment": {
+      "type": "object",
+      "required": ["ready_for_transition", "risk_assessment"],
+      "properties": {
+        "ready_for_transition": {
+          "type": "boolean",
+          "description": "Whether ready to move to next development phase"
+        },
+        "blocking_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of issues preventing phase transition"
+        },
+        "risk_assessment": {
+          "type": "object",
+          "required": ["false_positive_risk", "missed_requirements_risk"],
+          "properties": {
+            "false_positive_risk": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Risk of claiming readiness when not ready (1=low, 10=high)"
+            },
+            "missed_requirements_risk": {
+              "type": "integer", 
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Risk of missing important requirements (1=low, 10=high)"
+            },
+            "technical_debt_risk": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Risk of accumulating technical debt (1=low, 10=high)"
+            }
+          }
+        }
+      }
+    }
+  }
+}

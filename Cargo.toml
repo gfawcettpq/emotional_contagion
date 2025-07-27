@@ -1,0 +1,50 @@
+[package]
+name = "emotion_contagion"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+macroquad = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+egui = "0.24"
+egui-macroquad = "0.15"
+mlua = "0.9"
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4"] }
+
+[dev-dependencies]
+# Testing framework
+rstest = "0.18"
+mockall = "0.12"
+tokio-test = "0.4"
+proptest = "1.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# BDD testing
+cucumber = "0.20"
+async-trait = "0.1"
+
+# Test utilities
+tempfile = "3.0"
+serial_test = "3.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11 = "2.19"
+
+[[bin]]
+name = "emotion_contagion"
+path = "src/main.rs"
+
+[[bench]]
+name = "emotion_spread"
+harness = false
+
+[profile.test]
+opt-level = 1
+
+[profile.bench]
+opt-level = 3
