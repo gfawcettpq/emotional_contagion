@@ -9,7 +9,7 @@ echo "🪶 KESTREL: Starting work on '$TASK'"
 echo "⏰ Time: $TIMESTAMP"
 
 # Create proper org-mode task entry with time tracking
-cat >> ../org/daily-log.org << EOF
+cat >> org/daily-log.org << EOF
 
 ** Working on: $TASK
 :LOGBOOK:
@@ -23,7 +23,7 @@ echo "📝 Use 'stop-work' to close the clock entry"
 
 # Load relevant context
 echo "📚 Loading context for: $TASK"
-if [[ -f "../org/notes/"*"$TASK"* ]]; then
+if [[ -f "org/notes/"*"$TASK"* ]]; then
     echo "📄 Found related notes:"
-    ls ../org/notes/*"$TASK"* 2>/dev/null | head -3
+    ls org/notes/*"$TASK"* 2>/dev/null | head -3
 fi

@@ -1,22 +1,94 @@
 use macroquad::prelude::*;
 use crate::simulation::emotions::*;
 
-/// Types of entities in the simulation
-#[derive(Clone, Debug)]
-pub enum EntityType {
-    Person,      // Regular entity that can give and receive emotions
-    Source,      // Generates emotions continuously
-    Anchor,      // Absorbs emotions (emotion sink)
-    Modifier,    // Modifies emotions passing through
+/// Sentinel's 6 Character Types - Each with distinct AI behavior and emoji
+#[derive(Clone, Debug, PartialEq)]
+pub enum CharacterType {
+    HappyPerson,      // 😊 - Random walk movement
+    DepressedPerson,  // 😢 - Avoids crowds, seeks empty areas
+    AngryPerson,      // 😡 - Aggressive approach to high emotion areas
+    AnxiousPerson,    // 😰 - Erratic fleeing from high emotions
+    LoveSpreader,     // 💕 - Seeks sadness to heal it
+    ChaosAgent,       // 🌪️ - Pure chaos, 10% teleport chance
 }
 
-/// Entity movement patterns
+impl CharacterType {
+    pub fn emoji(&self) -> &'static str {
+        match self {
+            CharacterType::HappyPerson => "😊",
+            CharacterType::DepressedPerson => "😢", 
+            CharacterType::AngryPerson => "😡",
+            CharacterType::AnxiousPerson => "😰",
+            CharacterType::LoveSpreader => "💕",
+            CharacterType::ChaosAgent => "🌪️",
+        }
+    }
+    
+    pub fn name(&self) -> &'static str {
+        match self {
+            CharacterType::HappyPerson => "Happy Person",
+            CharacterType::DepressedPerson => "Depressed Person",
+            CharacterType::AngryPerson => "Angry Person", 
+            CharacterType::AnxiousPerson => "Anxious Person",
+            CharacterType::LoveSpreader => "Love Spreader",
+            CharacterType::ChaosAgent => "Chaos Agent",
+        }
+    }
+    
+    pub fn color(&self) -> Color {
+        match self {
+            CharacterType::HappyPerson => Color::new(1.0, 0.84, 0.0, 1.0),      // #FFD700 Golden yellow
+            CharacterType::DepressedPerson => Color::new(0.25, 0.41, 0.88, 1.0), // #4169E1 Blue
+            CharacterType::AngryPerson => Color::new(0.86, 0.08, 0.24, 1.0),     // #DC143C Red
+            CharacterType::AnxiousPerson => Color::new(0.58, 0.44, 0.86, 1.0),   // #9370DB Purple
+            CharacterType::LoveSpreader => Color::new(1.0, 0.41, 0.71, 1.0),     // #FF69B4 Pink
+            CharacterType::ChaosAgent => Color::new(0.55, 0.0, 0.0, 1.0),        // #8B0000 Dark red
+        }
+    }
+    
+    pub fn emission_radius(&self) -> f32 {
+        match self {
+            CharacterType::HappyPerson => 2.0,
+            CharacterType::DepressedPerson => 1.5,
+            CharacterType::AngryPerson => 3.0,
+            CharacterType::AnxiousPerson => 1.0,
+            CharacterType::LoveSpreader => 2.5,
+            CharacterType::ChaosAgent => 4.0,
+        }
+    }
+    
+    pub fn emission_strength(&self) -> f32 {
+        match self {
+            CharacterType::HappyPerson => 1.2,
+            CharacterType::DepressedPerson => 1.0,
+            CharacterType::AngryPerson => 2.0,
+            CharacterType::AnxiousPerson => 1.5,
+            CharacterType::LoveSpreader => 1.8,
+            CharacterType::ChaosAgent => 3.0,
+        }
+    }
+    
+    pub fn primary_emotion(&self) -> EmotionType {
+        match self {
+            CharacterType::HappyPerson => EmotionType::Joy,
+            CharacterType::DepressedPerson => EmotionType::Sadness,
+            CharacterType::AngryPerson => EmotionType::Anger,
+            CharacterType::AnxiousPerson => EmotionType::Anxiety,
+            CharacterType::LoveSpreader => EmotionType::Love,
+            CharacterType::ChaosAgent => EmotionType::Anger, // Creates chaos through anger
+        }
+    }
+}
+
+/// Character AI behavior patterns - Sentinel's 6 distinct movement algorithms
 #[derive(Clone, Debug)]
-pub enum MovementPattern {
-    Static,                                              // Stays in place
-    Random { speed: f32, bounds: Option<Rect> },     // Random wandering
-    Circular { center: Vec2, radius: f32, speed: f32 }, // Circular motion
-    Follow { target_id: u32, distance: f32 },           // Follow another entity
+pub enum CharacterAI {
+    RandomWalk { speed: f32 },                           // Happy Person - standard random movement
+    AvoidCrowds { speed: f32, avoidance_radius: f32 },   // Depressed Person - seeks lowest character density
+    AggressiveApproach { speed: f32, target_radius: f32 }, // Angry Person - moves toward highest emotion density
+    ErraticFleeing { speed: f32, panic_threshold: f32 },  // Anxious Person - panic movement away from emotions
+    SeekSadness { speed: f32, healing_radius: f32 },      // Love Spreader - hunts for sadness to heal
+    PureChaos { speed: f32, teleport_chance: f32 },       // Chaos Agent - 10% teleport + disrupts stable areas
 }
 
 /// Shape options for entity rendering
@@ -39,172 +111,224 @@ pub struct Appearance {
     pub show_stats: bool,
 }
 
-/// Main entity in the simulation
+/// Main entity in the simulation - updated for Sentinel's character system
 #[derive(Clone, Debug)]
 pub struct Entity {
     pub id: u32,
-    pub entity_type: EntityType,
+    pub character_type: CharacterType,  // Changed from entity_type to character_type
     pub position: Vec2,
     
-    // Movement
-    pub movement: MovementPattern,
-    pub velocity: Vec2,
-    pub max_speed: f32,
+    // Movement AI
+    pub ai_behavior: CharacterAI,
+    pub movement_timer: f32,
+    pub movement_angle: f32,
     
-    // Emotions
+    // Emotional state
     pub emotions: EmotionSet,
-    pub emotion_capacity: f32,    // Max total emotion intensity
-    pub influence_radius: f32,    // How far emotions spread from this entity
-    
-    // Visual
-    pub appearance: Appearance,
-    pub is_visible: bool,
-    
-    // Behavior  
-    pub last_update: f64,
-    pub energy: f32,             // Affects emotion spread strength
-    
-    // Stats for display
     pub total_emotions_given: f32,
     pub total_emotions_received: f32,
+    
+    // Rendering
+    pub appearance: Appearance,
+    pub is_visible: bool,
+    pub lifetime: f32,
+    pub last_update: f64,  // Restore this field that was removed
 }
 
 impl Entity {
     /// Create a new entity
-    pub fn new(id: u32, position: Vec2, entity_type: EntityType) -> Self {
+    pub fn new(id: u32, position: Vec2, entity_type: CharacterType) -> Self {
         let appearance = match entity_type {
-            EntityType::Person => Appearance {
+            CharacterType::HappyPerson => Appearance {
                 size: 12.0,
                 shape: EntityShape::Circle,
-                base_color: WHITE,
+                base_color: Color::new(1.0, 0.84, 0.0, 1.0), // Golden yellow for HappyPerson
                 show_emotions: true,
                 show_stats: false,
             },
-            EntityType::Source => Appearance {
-                size: 20.0,
-                shape: EntityShape::Star,
-                base_color: YELLOW,
-                show_emotions: true,
-                show_stats: true,
-            },
-            EntityType::Anchor => Appearance {
-                size: 15.0,
-                shape: EntityShape::Square,
-                base_color: GRAY,
+            CharacterType::DepressedPerson => Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: Color::new(0.25, 0.41, 0.88, 1.0), // Blue for DepressedPerson
                 show_emotions: true,
                 show_stats: false,
             },
-            EntityType::Modifier => Appearance {
-                size: 18.0,
-                shape: EntityShape::Triangle,
-                base_color: PURPLE,
-                show_emotions: false,
-                show_stats: true,
+            CharacterType::AngryPerson => Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: Color::new(0.86, 0.08, 0.24, 1.0), // Red for AngryPerson
+                show_emotions: true,
+                show_stats: false,
+            },
+            CharacterType::AnxiousPerson => Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: Color::new(0.58, 0.44, 0.86, 1.0), // Purple for AnxiousPerson
+                show_emotions: true,
+                show_stats: false,
+            },
+            CharacterType::LoveSpreader => Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: Color::new(1.0, 0.41, 0.71, 1.0), // Pink for LoveSpreader
+                show_emotions: true,
+                show_stats: false,
+            },
+            CharacterType::ChaosAgent => Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: Color::new(0.55, 0.0, 0.0, 1.0), // Dark red for ChaosAgent
+                show_emotions: true,
+                show_stats: false,
             },
         };
         
         Self {
             id,
-            entity_type,
+            character_type: entity_type,
             position,
+            ai_behavior: CharacterAI::RandomWalk { speed: 50.0 }, // Default AI behavior
+            movement_timer: 0.0,
+            movement_angle: 0.0,
             emotions: EmotionSet::new(),
-            movement: MovementPattern::Static,
-            appearance,
-            is_visible: true,
-            last_update: macroquad::prelude::get_time(),
-            energy: 1.0,
-            velocity: Vec2::ZERO,
-            max_speed: 100.0,
-            emotion_capacity: 100.0,
-            influence_radius: 50.0,
             total_emotions_given: 0.0,
             total_emotions_received: 0.0,
+            appearance,
+            is_visible: true,
+            lifetime: 0.0,
+            last_update: 0.0, // Initialize last_update
         }
     }
     
     /// Create a person entity with random movement
     pub fn person(id: u32, position: Vec2, speed: f32) -> Self {
-        let mut entity = Self::new(id, position, EntityType::Person);
-        entity.movement = MovementPattern::Random { 
-            speed, 
-            bounds: None 
-        };
+        let mut entity = Self::new(id, position, CharacterType::HappyPerson);
+        entity.ai_behavior = CharacterAI::RandomWalk { speed };
         entity
     }
     
     /// Create an emotion source that continuously produces emotions
     pub fn emotion_source(id: u32, position: Vec2, emotion_type: EmotionType, intensity: f32) -> Self {
-        let mut entity = Self::new(id, position, EntityType::Source);
+        let mut entity = Self::new(id, position, CharacterType::HappyPerson); // Default to HappyPerson for source
         entity.emotions.add_emotion(Emotion::new(emotion_type, intensity));
         entity
     }
     
-    /// Update entity position and internal state
+    /// Update entity state
     pub fn update(&mut self, delta_time: f32, bounds: Rect) {
         let current_time = macroquad::prelude::get_time();
         let time_diff = current_time - self.last_update;
         self.last_update = current_time;
-
-        // Update emotions (decay over time)
-        self.emotions.update(time_diff as f32);
         
-        // Update movement
-        match &self.movement {
-            MovementPattern::Static => {},
-            
-            MovementPattern::Random { speed, bounds: move_bounds } => {
-                let bounds = move_bounds.unwrap_or(bounds);
-                
+        // Update movement based on AI behavior
+        match &self.ai_behavior {
+            CharacterAI::RandomWalk { speed } => {
                 // Change direction occasionally
                 if time_diff > 2.0 {
-                    self.velocity = Vec2::new(
-                        rand::gen_range(-1.0, 1.0) * speed,
-                        rand::gen_range(-1.0, 1.0) * speed,
-                    );
-                    self.last_update = current_time; // Reset timer after direction change
+                    self.movement_angle = rand::gen_range(0.0, 360.0);
+                    self.movement_timer = 0.0;
                 }
                 
                 // Move in current direction
-                self.position += self.velocity * delta_time;
-                
-                let new_pos = self.position;
+                self.position += Vec2::new(
+                    self.movement_angle.to_radians().cos() * speed * delta_time,
+                    self.movement_angle.to_radians().sin() * speed * delta_time,
+                );
                 
                 // Bounce off boundaries
-                let mut final_pos = new_pos;
-                if new_pos.x < bounds.x || new_pos.x > bounds.x + bounds.w {
-                    self.velocity.x *= -1.0;
-                    final_pos.x = new_pos.x.clamp(bounds.x, bounds.x + bounds.w);
+                if self.position.x < bounds.x || self.position.x > bounds.x + bounds.w {
+                    self.movement_angle = 180.0 - self.movement_angle;
+                    self.position.x = self.position.x.clamp(bounds.x, bounds.x + bounds.w);
                 }
-                if new_pos.y < bounds.y || new_pos.y > bounds.y + bounds.h {
-                    self.velocity.y *= -1.0;
-                    final_pos.y = new_pos.y.clamp(bounds.y, bounds.y + bounds.h);
+                if self.position.y < bounds.y || self.position.y > bounds.y + bounds.h {
+                    self.movement_angle = -self.movement_angle;
+                    self.position.y = self.position.y.clamp(bounds.y, bounds.y + bounds.h);
                 }
-                
-                self.position = final_pos;
             },
             
-            MovementPattern::Circular { center, radius, speed } => {
-                // Calculate angle based on time for smooth circular motion
-                let angle = self.last_update as f32 * speed;
-                self.position = *center + Vec2::new(
-                    angle.cos() * radius,
-                    angle.sin() * radius,
+            // TODO: Implement other AI behaviors - simplified for now
+            CharacterAI::AvoidCrowds { speed, .. } => {
+                // Simple random movement for now - will enhance later
+                if time_diff > 2.0 {
+                    self.movement_angle = rand::gen_range(0.0, 360.0);
+                    self.movement_timer = 0.0;
+                }
+                self.position += Vec2::new(
+                    self.movement_angle.to_radians().cos() * speed * delta_time,
+                    self.movement_angle.to_radians().sin() * speed * delta_time,
                 );
             },
             
-            MovementPattern::Follow { target_id: _, distance: _ } => {
-                // TODO: Implement following behavior
+            CharacterAI::AggressiveApproach { speed, .. } => {
+                // Simple random movement for now - will enhance later
+                if time_diff > 2.0 {
+                    self.movement_angle = rand::gen_range(0.0, 360.0);
+                    self.movement_timer = 0.0;
+                }
+                self.position += Vec2::new(
+                    self.movement_angle.to_radians().cos() * speed * delta_time,
+                    self.movement_angle.to_radians().sin() * speed * delta_time,
+                );
+            },
+            
+            CharacterAI::ErraticFleeing { speed, .. } => {
+                // Simple random movement for now - will enhance later
+                if time_diff > 2.0 {
+                    self.movement_angle = rand::gen_range(0.0, 360.0);
+                    self.movement_timer = 0.0;
+                }
+                self.position += Vec2::new(
+                    self.movement_angle.to_radians().cos() * speed * delta_time,
+                    self.movement_angle.to_radians().sin() * speed * delta_time,
+                );
+            },
+            
+            CharacterAI::SeekSadness { speed, .. } => {
+                // Simple random movement for now - will enhance later
+                if time_diff > 2.0 {
+                    self.movement_angle = rand::gen_range(0.0, 360.0);
+                    self.movement_timer = 0.0;
+                }
+                self.position += Vec2::new(
+                    self.movement_angle.to_radians().cos() * speed * delta_time,
+                    self.movement_angle.to_radians().sin() * speed * delta_time,
+                );
+            },
+            
+            CharacterAI::PureChaos { speed, teleport_chance } => {
+                // Teleport chance
+                if rand::gen_range(0.0, 1.0) < *teleport_chance * delta_time {
+                    self.position = Vec2::new(
+                        rand::gen_range(bounds.x, bounds.x + bounds.w),
+                        rand::gen_range(bounds.y, bounds.y + bounds.h),
+                    );
+                } else {
+                    // Random movement
+                    if time_diff > 1.0 {
+                        self.movement_angle = rand::gen_range(0.0, 360.0);
+                        self.movement_timer = 0.0;
+                    }
+                    self.position += Vec2::new(
+                        self.movement_angle.to_radians().cos() * speed * delta_time,
+                        self.movement_angle.to_radians().sin() * speed * delta_time,
+                    );
+                }
             },
         }
         
         // Emotion sources continuously generate emotions
-        if matches!(self.entity_type, EntityType::Source) {
-            if let Some(dominant) = self.emotions.dominant_emotion() {
-                let emotion_type = dominant.emotion_type.clone();
-                let new_emotion = Emotion::new(emotion_type, 0.1); // Continuous low-level generation
-                self.emotions.add_emotion(new_emotion);
-            }
+        if let Some(dominant) = self.emotions.get_dominant_emotion() {
+            let emotion_type = dominant.emotion_type.clone();
+            let base_intensity = 0.5;
+            let mut emotion = Emotion::new(emotion_type, base_intensity);
+            self.emotions.add_emotion(emotion);
         }
+        
+        // Update emotions (decay over time)
+        self.emotions.update(delta_time);
+        
+        // Update lifetime
+        self.lifetime += delta_time;
     }
     
     /// Spread emotions to nearby entities
@@ -379,29 +503,24 @@ impl Entity {
     pub fn new_person(id: u32, position: Vec2) -> Self {
         Self {
             id,
-            entity_type: EntityType::Person,
+            character_type: CharacterType::HappyPerson,
             position,
+            ai_behavior: CharacterAI::RandomWalk { speed: 50.0 },
+            movement_timer: 0.0,
+            movement_angle: 0.0,
             emotions: EmotionSet::new(),
-            movement: MovementPattern::Random { 
-                speed: 50.0, 
-                bounds: None 
-            },
+            total_emotions_given: 0.0,
+            total_emotions_received: 0.0,
             appearance: Appearance {
                 size: 12.0,
                 shape: EntityShape::Circle,
-                base_color: WHITE,
+                base_color: Color::new(1.0, 0.84, 0.0, 1.0),
                 show_emotions: true,
                 show_stats: false,
             },
             is_visible: true,
-            last_update: macroquad::prelude::get_time(),
-            energy: 1.0,
-            velocity: Vec2::ZERO,
-            max_speed: 100.0,
-            emotion_capacity: 100.0,
-            influence_radius: 50.0,
-            total_emotions_given: 0.0,
-            total_emotions_received: 0.0,
+            lifetime: 0.0,
+            last_update: 0.0, // Initialize last_update
         }
     }
 
@@ -413,10 +532,14 @@ impl Entity {
         
         Self {
             id,
-            entity_type: EntityType::Source,
+            character_type: CharacterType::HappyPerson, // Default to HappyPerson for source
             position,
+            ai_behavior: CharacterAI::RandomWalk { speed: 50.0 }, // Default AI behavior for source
+            movement_timer: 0.0,
+            movement_angle: 0.0,
             emotions,
-            movement: MovementPattern::Static,
+            total_emotions_given: 0.0,
+            total_emotions_received: 0.0,
             appearance: Appearance {
                 size: 18.0,
                 shape: EntityShape::Square,
@@ -425,14 +548,8 @@ impl Entity {
                 show_stats: true,
             },
             is_visible: true,
-            last_update: macroquad::prelude::get_time(),
-            energy: 1.0,
-            velocity: Vec2::ZERO,
-            max_speed: 100.0,
-            emotion_capacity: 100.0,
-            influence_radius: 50.0,
-            total_emotions_given: 0.0,
-            total_emotions_received: 0.0,
+            lifetime: 0.0,
+            last_update: 0.0, // Initialize last_update
         }
     }
 } 

@@ -87,6 +87,67 @@ impl EmotionType {
     }
 }
 
+/// Sentinel's Conway's Game of Life Rules for Emotional Contagion
+#[derive(Clone, Debug)]
+pub struct ContagionRules {
+    pub birth_neighbors: i32,    // How many emotional neighbors needed to spawn
+    pub survival_min: i32,       // Minimum neighbors to survive
+    pub survival_max: i32,       // Maximum neighbors to survive  
+    pub transmission_rate: f32,  // Chance of spreading to neighbors
+    pub decay_rate: f32,         // Natural decay per tick
+}
+
+impl EmotionType {
+    /// Get Sentinel's Conway rules for this emotion type
+    pub fn contagion_rules(&self) -> ContagionRules {
+        match self {
+            EmotionType::Joy => ContagionRules {
+                birth_neighbors: 3,      // Needs 3+ emotional neighbors to spawn
+                survival_min: 2,         // Dies with <2 neighbors
+                survival_max: 3,         // Dies with >3 neighbors  
+                transmission_rate: 0.4,  // 40% chance of spreading
+                decay_rate: 0.05,        // 5% natural decay per tick
+            },
+            EmotionType::Sadness => ContagionRules {
+                birth_neighbors: 2,      // Easier to spawn (2+ neighbors)
+                survival_min: 2,
+                survival_max: 4,         // More resilient range
+                transmission_rate: 0.3,
+                decay_rate: 0.1,
+            },
+            EmotionType::Anger => ContagionRules {
+                birth_neighbors: 3,
+                survival_min: 1,         // Can survive alone
+                survival_max: 3,
+                transmission_rate: 0.8,  // HIGHLY contagious
+                decay_rate: 0.2,         // Burns out quickly
+            },
+            EmotionType::Anxiety => ContagionRules {
+                birth_neighbors: 4,      // Needs chaos (4+ neighbors)
+                survival_min: 2,
+                survival_max: 6,         // Thrives in chaos
+                transmission_rate: 0.6,
+                decay_rate: 0.15,
+            },
+            EmotionType::Love => ContagionRules {
+                birth_neighbors: 2,
+                survival_min: 1,
+                survival_max: 4,         // Very resilient
+                transmission_rate: 0.3,
+                decay_rate: 0.03,        // Barely decays
+            },
+            // Default rules for other emotions
+            _ => ContagionRules {
+                birth_neighbors: 3,
+                survival_min: 2,
+                survival_max: 3,
+                transmission_rate: 0.3,
+                decay_rate: 0.1,
+            },
+        }
+    }
+}
+
 /// Represents a single emotion with intensity, spread properties, and visual color
 #[derive(Clone, Debug)]
 pub struct Emotion {
@@ -260,14 +321,73 @@ impl EmotionSet {
         self.emotions.values().map(|e| e.intensity).sum()
     }
 
-    /// Check if any emotions are present
+    /// Get the emotion with the highest intensity
+    pub fn get_dominant_emotion(&self) -> Option<&Emotion> {
+        self.emotions.values()
+            .max_by(|a, b| a.intensity.partial_cmp(&b.intensity).unwrap_or(std::cmp::Ordering::Equal))
+    }
+    
+    /// Check if there are any emotions present
     pub fn is_empty(&self) -> bool {
-        self.emotions.is_empty()
+        self.emotions.is_empty() || self.get_total_intensity() < 0.01
     }
 
     /// Get total intensity across all emotions
     pub fn get_total_intensity(&self) -> f32 {
         self.emotions.values().map(|emotion| emotion.intensity).sum()
+    }
+
+    /// Apply Sentinel's emotional interaction rules
+    pub fn apply_emotional_interactions(&mut self) {
+        // Get current emotion intensities to avoid borrow checker issues
+        let joy_intensity = self.get_intensity(&EmotionType::Joy);
+        let sadness_intensity = self.get_intensity(&EmotionType::Sadness);
+        let anger_intensity = self.get_intensity(&EmotionType::Anger);
+        let love_intensity = self.get_intensity(&EmotionType::Love);
+        
+        // Joy neutralizes sadness
+        if joy_intensity > 5.0 && sadness_intensity > 3.0 {
+            let neutralization = (joy_intensity.min(sadness_intensity) * 0.3).min(2.0);
+            
+            if let Some(joy_emotion) = self.emotions.get_mut(&EmotionType::Joy) {
+                joy_emotion.intensity = (joy_emotion.intensity - neutralization).max(0.0);
+            }
+            if let Some(sadness_emotion) = self.emotions.get_mut(&EmotionType::Sadness) {
+                sadness_emotion.intensity = (sadness_emotion.intensity - neutralization).max(0.0);
+            }
+        }
+        
+        // Anger destroys weaker emotions
+        if anger_intensity >= 7.0 {
+            if let Some(joy_emotion) = self.emotions.get_mut(&EmotionType::Joy) {
+                joy_emotion.intensity = (joy_emotion.intensity - anger_intensity * 0.2).max(0.0);
+            }
+            if let Some(love_emotion) = self.emotions.get_mut(&EmotionType::Love) {
+                love_emotion.intensity = (love_emotion.intensity - anger_intensity * 0.15).max(0.0);
+            }
+        }
+        
+        // Love heals negative emotions
+        if love_intensity >= 6.0 {
+            if let Some(sadness_emotion) = self.emotions.get_mut(&EmotionType::Sadness) {
+                sadness_emotion.intensity = (sadness_emotion.intensity - love_intensity * 0.1).max(0.0);
+            }
+            if let Some(anger_emotion) = self.emotions.get_mut(&EmotionType::Anger) {
+                anger_emotion.intensity = (anger_emotion.intensity - love_intensity * 0.15).max(0.0);
+            }
+        }
+        
+        // Anxiety spreads in high-emotion areas
+        let total_emotions = joy_intensity + sadness_intensity + anger_intensity + love_intensity;
+        if total_emotions > 15.0 {
+            if let Some(anxiety_emotion) = self.emotions.get_mut(&EmotionType::Anxiety) {
+                anxiety_emotion.intensity = (anxiety_emotion.intensity + 0.5).min(10.0);
+            } else {
+                // Create anxiety if it doesn't exist
+                let anxiety = Emotion::new(EmotionType::Anxiety, 0.5);
+                self.emotions.insert(EmotionType::Anxiety, anxiety);
+            }
+        }
     }
 }
 

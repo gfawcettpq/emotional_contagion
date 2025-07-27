@@ -20,7 +20,7 @@ elif [ -z "$CONTEXT" ]; then
     echo ""
     echo "Recent options:"
     echo "📄 Recent DVOPS tickets:"
-    grep -E "^\*\* .* DVOPS-[0-9]+" ../org/DVOPS.org | tail -3 | sed 's/.*\(DVOPS-[0-9]*\).*/  \1/'
+    grep -E ":CUSTOM_ID: DVOPS-[0-9]+" org/DVOPS.org | tail -3 | sed 's/.*DVOPS-/  DVOPS-/'
     echo ""
     echo "📁 Current project: $(basename $(pwd))"
     echo ""

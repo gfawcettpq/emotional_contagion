@@ -336,4 +336,115 @@ impl Grid {
             cell.add_entity(entity.id);
         }
     }
+
+    /// Apply Sentinel's Conway's Game of Life rules for emotional contagion
+    pub fn update_emotional_contagion(&mut self, delta_time: f32) {
+        let mut next_grid_emotions: Vec<EmotionSet> = Vec::new();
+        
+        // Process each cell with Conway's rules
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
+                let mut new_emotions = EmotionSet::new();
+                
+                if let Some(current_cell) = self.get_cell(x, y) {
+                    // Get neighbor coordinates
+                    let neighbor_coords = self.get_neighbor_coords(x, y);
+                    
+                    // Process each emotion type separately
+                    for emotion_type in [EmotionType::Joy, EmotionType::Sadness, EmotionType::Anger, EmotionType::Anxiety, EmotionType::Love] {
+                        let rules = emotion_type.contagion_rules();
+                        let current_intensity = current_cell.emotions.get_intensity(&emotion_type);
+                        
+                        // Count neighbors with this emotion type
+                        let mut neighbor_count = 0;
+                        let mut transmission_strength = 0.0;
+                        
+                        for (nx, ny) in &neighbor_coords {
+                            if let Some(neighbor_cell) = self.get_cell(*nx, *ny) {
+                                let neighbor_intensity = neighbor_cell.emotions.get_intensity(&emotion_type);
+                                if neighbor_intensity > 0.1 {
+                                    neighbor_count += 1;
+                                    transmission_strength += neighbor_intensity * rules.transmission_rate;
+                                }
+                            }
+                        }
+                        
+                        let mut new_intensity = current_intensity;
+                        
+                        // Apply Conway's rules
+                        if current_intensity > 0.1 {
+                            // Existing emotion - check survival
+                            if neighbor_count < rules.survival_min || neighbor_count > rules.survival_max {
+                                new_intensity = 0.0; // Dies
+                            } else {
+                                // Survives - apply decay
+                                new_intensity = (current_intensity * (1.0 - rules.decay_rate * delta_time)).max(0.0);
+                            }
+                        } else {
+                            // Empty cell - check birth
+                            if neighbor_count >= rules.birth_neighbors {
+                                if transmission_strength > 0.0 && rand::gen_range(0.0, 1.0) < transmission_strength * delta_time {
+                                    new_intensity = (transmission_strength / neighbor_coords.len() as f32).min(5.0);
+                                }
+                            }
+                        }
+                        
+                        // Add emotion if intensity is significant
+                        if new_intensity > 0.1 {
+                            let emotion = Emotion::new(emotion_type.clone(), new_intensity);
+                            new_emotions.add_emotion(emotion);
+                        }
+                    }
+                    
+                    // Apply emotional interactions (Sentinel's mixing rules)
+                    new_emotions.apply_emotional_interactions();
+                }
+                
+                next_grid_emotions.push(new_emotions);
+            }
+        }
+        
+        // Update grid with new emotions
+        let mut emotion_index = 0;
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
+                if let Some(cell) = self.get_cell_mut(x, y) {
+                    cell.emotions = next_grid_emotions[emotion_index].clone();
+                    emotion_index += 1;
+                }
+            }
+        }
+        
+        // Update total intensity tracking
+        self.total_emotion_intensity = 0.0;
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
+                if let Some(cell) = self.get_cell(x, y) {
+                    self.total_emotion_intensity += cell.emotions.get_total_intensity();
+                }
+            }
+        }
+    }
+
+    /// Get neighbor coordinates for Conway's Game of Life
+    fn get_neighbor_coords(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
+        let mut neighbors = Vec::new();
+        
+        for dx in -1i32..=1 {
+            for dy in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue; // Skip the center cell
+                }
+                
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                
+                if nx >= 0 && nx < self.width && ny >= 0 && ny < self.height {
+                    neighbors.push((nx as usize, ny as usize));
+                }
+            }
+        }
+        
+        neighbors
+    }
 } 

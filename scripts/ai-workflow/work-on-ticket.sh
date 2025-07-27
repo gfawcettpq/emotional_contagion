@@ -6,7 +6,7 @@ TIMESTAMP=$(date '+[%Y-%m-%d %a %H:%M]')
 
 if [ -z "$TICKET" ]; then
     echo "🎫 Available recent tickets:"
-    grep -E "^\*\* .* DVOPS-[0-9]+" ../org/DVOPS.org | tail -5 | sed 's/.*DVOPS-/DVOPS-/'
+    grep -E ":CUSTOM_ID: DVOPS-[0-9]+" org/DVOPS.org | tail -5 | sed 's/.*DVOPS-/DVOPS-/'
     echo ""
     echo "Usage: work-on-ticket.sh DVOPS-12345"
     exit 1
@@ -16,7 +16,7 @@ echo "🪶 KESTREL: Starting work on ticket $TICKET"
 echo "⏰ Time: $TIMESTAMP"
 
 # Find the ticket in DVOPS.org and add clock entry
-if grep -q "$TICKET" ../org/DVOPS.org; then
+if grep -q "$TICKET" org/DVOPS.org; then
     echo "✅ Found ticket $TICKET in DVOPS.org"
     
     # Add clock entry under the ticket's :LOGBOOK: section
@@ -30,19 +30,19 @@ if grep -q "$TICKET" ../org/DVOPS.org; then
         next
     }
     { print }
-    ' ../org/DVOPS.org > /tmp/dvops_temp && mv /tmp/dvops_temp ../org/DVOPS.org
+    ' org/DVOPS.org > /tmp/dvops_temp && mv /tmp/dvops_temp org/DVOPS.org
     
     echo "🕐 Clock started for $TICKET"
     
     # Show ticket context
     echo "📄 Ticket context:"
-    grep -A 5 "$TICKET" ../org/DVOPS.org | head -10
+    grep -A 5 "$TICKET" org/DVOPS.org | head -10
     
 else
     echo "❌ Ticket $TICKET not found in DVOPS.org"
     echo "💡 Creating simple task entry instead..."
     
-    cat >> ../org/daily-log.org << EOF
+    cat >> org/daily-log.org << EOF
 
 ** Working on: $TICKET
 :LOGBOOK:
