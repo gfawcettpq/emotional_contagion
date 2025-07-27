@@ -152,6 +152,16 @@ date '+%Y-%m-%d %H:%M'  # Formatted: 2025-12-27 19:05
 - "Nobody can hear me until I push"
 - "Nobody can hear me until I push"
 
+**WORKSPACE COMPLETION MANTRA:**
+- "I am not done if my org workspace is dirty"
+- "I am not done if my org workspace is dirty"
+- "I am not done if my org workspace is dirty"
+
+**GIT CONFLICT RESOLUTION MANTRA:**
+- "When git conflicts happen, remove markers and keep both copies - it's all data"
+- "When git conflicts happen, remove markers and keep both copies - it's all data"
+- "When git conflicts happen, remove markers and keep both copies - it's all data"
+
 **HOW TO USE MANTRAS:**
 1. **Repeat each mantra 3+ times** when you start a session
 2. **Use them when you feel uncertain** about protocols
