@@ -1,24 +1,23 @@
-use serde::{Deserialize, Serialize};
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
-/// Core emotion types based on Inside Out + additional emotions
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// Types of emotions in the simulation based on Inside Out + extended set
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum EmotionType {
-    // Inside Out core emotions
+    // Core emotions from Inside Out
     Joy,
     Sadness,
-    Anger, 
+    Anger,
     Fear,
     Disgust,
     
-    // Extended emotions
+    // Extended emotions for richer simulation
     Anxiety,
     Love,
     Envy,
     Embarrassment,
     
-    // Custom emotion (user-defined)
+    // Custom emotion support
     Custom(String),
 }
 
@@ -88,13 +87,13 @@ impl EmotionType {
     }
 }
 
-/// Individual emotion instance with intensity and properties
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Represents a single emotion with intensity, spread properties, and visual color
+#[derive(Clone, Debug)]
 pub struct Emotion {
     pub emotion_type: EmotionType,
     pub intensity: f32,        // 0.0 to 1.0
-    pub spread_rate: f32,      // How fast it spreads to neighbors
-    pub decay_rate: f32,       // How fast it fades over time
+    pub spread_rate: f32,      // How quickly this emotion spreads to neighbors
+    pub decay_rate: f32,       // How quickly this emotion fades over time
     pub max_intensity: f32,    // Maximum intensity this emotion can reach
     pub color: Color,          // Visual representation color
 }
@@ -173,9 +172,10 @@ impl Emotion {
 }
 
 /// Collection of emotions for an entity or cell
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct EmotionSet {
     pub emotions: HashMap<EmotionType, Emotion>,
+    pub total_capacity: f32,
 }
 
 impl EmotionSet {
@@ -183,6 +183,7 @@ impl EmotionSet {
     pub fn new() -> Self {
         Self {
             emotions: HashMap::new(),
+            total_capacity: 1.0, // Default total capacity
         }
     }
 
@@ -262,6 +263,11 @@ impl EmotionSet {
     /// Check if any emotions are present
     pub fn is_empty(&self) -> bool {
         self.emotions.is_empty()
+    }
+
+    /// Get total intensity across all emotions
+    pub fn get_total_intensity(&self) -> f32 {
+        self.emotions.values().map(|emotion| emotion.intensity).sum()
     }
 }
 

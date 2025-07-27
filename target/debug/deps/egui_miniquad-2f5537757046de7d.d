@@ -1,0 +1,7 @@
+/Users/graemefawcett/working/emotional_contagion/target/debug/deps/libegui_miniquad-2f5537757046de7d.rmeta: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/input.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/painter.rs
+
+/Users/graemefawcett/working/emotional_contagion/target/debug/deps/egui_miniquad-2f5537757046de7d.d: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/input.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/painter.rs
+
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/lib.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/input.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/egui-miniquad-0.14.0/src/painter.rs:

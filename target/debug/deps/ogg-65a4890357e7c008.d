@@ -1,0 +1,8 @@
+/Users/graemefawcett/working/emotional_contagion/target/debug/deps/libogg-65a4890357e7c008.rmeta: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/crc.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/reading.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/writing.rs
+
+/Users/graemefawcett/working/emotional_contagion/target/debug/deps/ogg-65a4890357e7c008.d: /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/lib.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/crc.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/reading.rs /Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/writing.rs
+
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/lib.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/crc.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/reading.rs:
+/Users/graemefawcett/.local/share/mise/installs/rust/1.87.0/registry/src/index.crates.io-1949cf8c6b5b557f/ogg-0.7.1/src/writing.rs:

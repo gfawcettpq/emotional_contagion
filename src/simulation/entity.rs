@@ -1,28 +1,36 @@
-use serde::{Deserialize, Serialize};
 use macroquad::prelude::*;
-use std::collections::HashMap;
-use super::emotions::{EmotionSet, EmotionType, Emotion};
+use crate::simulation::emotions::*;
 
 /// Types of entities in the simulation
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum EntityType {
     Person,      // Regular entity that can give and receive emotions
-    Source,      // Static emotion generator (never stops producing)
-    Anchor,      // Fixed point with specific emotional properties
-    Modifier,    // Affects nearby emotions (amplifier, dampener, etc.)
+    Source,      // Generates emotions continuously
+    Anchor,      // Absorbs emotions (emotion sink)
+    Modifier,    // Modifies emotions passing through
 }
 
-/// Movement patterns for entities
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Entity movement patterns
+#[derive(Clone, Debug)]
 pub enum MovementPattern {
-    Static,                                           // Doesn't move
+    Static,                                              // Stays in place
     Random { speed: f32, bounds: Option<Rect> },     // Random wandering
     Circular { center: Vec2, radius: f32, speed: f32 }, // Circular motion
-    Follow { target_id: u32, distance: f32 },        // Follows another entity
+    Follow { target_id: u32, distance: f32 },           // Follow another entity
+}
+
+/// Shape options for entity rendering
+#[derive(Clone, Debug)]
+pub enum EntityShape {
+    Circle,
+    Square,
+    Triangle,
+    Heart,
+    Star,
 }
 
 /// Visual appearance configuration
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Appearance {
     pub size: f32,
     pub shape: EntityShape,
@@ -31,35 +39,34 @@ pub struct Appearance {
     pub show_stats: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum EntityShape {
-    Circle,
-    Square,
-    Triangle,
-    Heart,     // For love-focused entities
-    Star,      // For joy-focused entities
-}
-
 /// Main entity in the simulation
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Entity {
     pub id: u32,
-    pub position: Vec2,
     pub entity_type: EntityType,
-    pub emotions: EmotionSet,
-    pub movement: MovementPattern,
-    pub appearance: Appearance,
-    pub active: bool,
+    pub position: Vec2,
     
-    // Movement state
+    // Movement
+    pub movement: MovementPattern,
     pub velocity: Vec2,
-    pub movement_timer: f32,
-    pub movement_angle: f32,
+    pub max_speed: f32,
+    
+    // Emotions
+    pub emotions: EmotionSet,
+    pub emotion_capacity: f32,    // Max total emotion intensity
+    pub influence_radius: f32,    // How far emotions spread from this entity
+    
+    // Visual
+    pub appearance: Appearance,
+    pub is_visible: bool,
+    
+    // Behavior  
+    pub last_update: f64,
+    pub energy: f32,             // Affects emotion spread strength
     
     // Stats for display
     pub total_emotions_given: f32,
     pub total_emotions_received: f32,
-    pub lifetime: f32,
 }
 
 impl Entity {
@@ -98,18 +105,20 @@ impl Entity {
         
         Self {
             id,
-            position,
             entity_type,
+            position,
             emotions: EmotionSet::new(),
             movement: MovementPattern::Static,
             appearance,
-            active: true,
+            is_visible: true,
+            last_update: macroquad::prelude::get_time(),
+            energy: 1.0,
             velocity: Vec2::ZERO,
-            movement_timer: 0.0,
-            movement_angle: 0.0,
+            max_speed: 100.0,
+            emotion_capacity: 100.0,
+            influence_radius: 50.0,
             total_emotions_given: 0.0,
             total_emotions_received: 0.0,
-            lifetime: 0.0,
         }
     }
     
@@ -132,11 +141,12 @@ impl Entity {
     
     /// Update entity position and internal state
     pub fn update(&mut self, delta_time: f32, bounds: Rect) {
-        self.lifetime += delta_time;
-        self.movement_timer += delta_time;
-        
+        let current_time = macroquad::prelude::get_time();
+        let time_diff = current_time - self.last_update;
+        self.last_update = current_time;
+
         // Update emotions (decay over time)
-        self.emotions.update(delta_time);
+        self.emotions.update(time_diff as f32);
         
         // Update movement
         match &self.movement {
@@ -146,27 +156,27 @@ impl Entity {
                 let bounds = move_bounds.unwrap_or(bounds);
                 
                 // Change direction occasionally
-                if self.movement_timer > 2.0 {
-                    self.movement_angle = rand::gen_range(0.0, 2.0 * std::f32::consts::PI);
-                    self.movement_timer = 0.0;
+                if time_diff > 2.0 {
+                    self.velocity = Vec2::new(
+                        rand::gen_range(-1.0, 1.0) * speed,
+                        rand::gen_range(-1.0, 1.0) * speed,
+                    );
+                    self.last_update = current_time; // Reset timer after direction change
                 }
                 
                 // Move in current direction
-                self.velocity = Vec2::new(
-                    self.movement_angle.cos() * speed,
-                    self.movement_angle.sin() * speed,
-                );
+                self.position += self.velocity * delta_time;
                 
-                let new_pos = self.position + self.velocity * delta_time;
+                let new_pos = self.position;
                 
                 // Bounce off boundaries
                 let mut final_pos = new_pos;
                 if new_pos.x < bounds.x || new_pos.x > bounds.x + bounds.w {
-                    self.movement_angle = std::f32::consts::PI - self.movement_angle;
+                    self.velocity.x *= -1.0;
                     final_pos.x = new_pos.x.clamp(bounds.x, bounds.x + bounds.w);
                 }
                 if new_pos.y < bounds.y || new_pos.y > bounds.y + bounds.h {
-                    self.movement_angle = -self.movement_angle;
+                    self.velocity.y *= -1.0;
                     final_pos.y = new_pos.y.clamp(bounds.y, bounds.y + bounds.h);
                 }
                 
@@ -174,10 +184,11 @@ impl Entity {
             },
             
             MovementPattern::Circular { center, radius, speed } => {
-                self.movement_angle += speed * delta_time;
+                // Calculate angle based on time for smooth circular motion
+                let angle = self.last_update as f32 * speed;
                 self.position = *center + Vec2::new(
-                    self.movement_angle.cos() * radius,
-                    self.movement_angle.sin() * radius,
+                    angle.cos() * radius,
+                    angle.sin() * radius,
                 );
             },
             
@@ -217,7 +228,7 @@ impl Entity {
     
     /// Render the entity
     pub fn render(&self) {
-        if !self.active {
+        if !self.is_visible {
             return;
         }
         
@@ -361,6 +372,67 @@ impl Entity {
     
     /// Check if this entity can interact with another (within range)
     pub fn can_interact_with(&self, other: &Entity, max_distance: f32) -> bool {
-        self.active && other.active && self.distance_to(other) <= max_distance
+        self.is_visible && other.is_visible && self.distance_to(other) <= max_distance
+    }
+
+    /// Create a new person entity
+    pub fn new_person(id: u32, position: Vec2) -> Self {
+        Self {
+            id,
+            entity_type: EntityType::Person,
+            position,
+            emotions: EmotionSet::new(),
+            movement: MovementPattern::Random { 
+                speed: 50.0, 
+                bounds: None 
+            },
+            appearance: Appearance {
+                size: 12.0,
+                shape: EntityShape::Circle,
+                base_color: WHITE,
+                show_emotions: true,
+                show_stats: false,
+            },
+            is_visible: true,
+            last_update: macroquad::prelude::get_time(),
+            energy: 1.0,
+            velocity: Vec2::ZERO,
+            max_speed: 100.0,
+            emotion_capacity: 100.0,
+            influence_radius: 50.0,
+            total_emotions_given: 0.0,
+            total_emotions_received: 0.0,
+        }
+    }
+
+    /// Create a new emotion source entity
+    pub fn new_source(id: u32, position: Vec2, emotion_type: EmotionType) -> Self {
+        let mut emotions = EmotionSet::new();
+        let emotion = Emotion::new(emotion_type.clone(), 0.8);
+        emotions.add_emotion(emotion);
+        
+        Self {
+            id,
+            entity_type: EntityType::Source,
+            position,
+            emotions,
+            movement: MovementPattern::Static,
+            appearance: Appearance {
+                size: 18.0,
+                shape: EntityShape::Square,
+                base_color: super::colors::emotion_to_nord_color(&format!("{:?}", emotion_type)),
+                show_emotions: true,
+                show_stats: true,
+            },
+            is_visible: true,
+            last_update: macroquad::prelude::get_time(),
+            energy: 1.0,
+            velocity: Vec2::ZERO,
+            max_speed: 100.0,
+            emotion_capacity: 100.0,
+            influence_radius: 50.0,
+            total_emotions_given: 0.0,
+            total_emotions_received: 0.0,
+        }
     }
 } 

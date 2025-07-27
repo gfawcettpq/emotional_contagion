@@ -1,25 +1,25 @@
-use serde::{Deserialize, Serialize};
 use macroquad::prelude::*;
 use std::collections::HashMap;
-use super::emotions::{EmotionSet, EmotionType, Emotion};
-use super::entity::Entity;
+use crate::simulation::{emotions::*, entity::Entity};
 
-/// A cell in the simulation grid
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// A single cell in the simulation grid
+#[derive(Clone, Debug)]
 pub struct Cell {
-    pub position: (usize, usize),
+    pub x: i32,
+    pub y: i32,
     pub emotions: EmotionSet,
-    pub entity_ids: Vec<u32>, // Entities currently in this cell
+    pub entities: Vec<u32>,           // Entity IDs in this cell
     pub background_color: Color,
-    pub is_barrier: bool, // Blocks emotion spread
+    pub is_barrier: bool,             // Blocks emotion spread
 }
 
 impl Cell {
     pub fn new(position: (usize, usize)) -> Self {
         Self {
-            position,
+            x: position.0 as i32,
+            y: position.1 as i32,
             emotions: EmotionSet::new(),
-            entity_ids: Vec::new(),
+            entities: Vec::new(),
             background_color: Color::new(0.95, 0.95, 0.95, 1.0), // Light gray background
             is_barrier: false,
         }
@@ -32,14 +32,14 @@ impl Cell {
     
     /// Add an entity to this cell
     pub fn add_entity(&mut self, entity_id: u32) {
-        if !self.entity_ids.contains(&entity_id) {
-            self.entity_ids.push(entity_id);
+        if !self.entities.contains(&entity_id) {
+            self.entities.push(entity_id);
         }
     }
     
     /// Remove an entity from this cell
     pub fn remove_entity(&mut self, entity_id: u32) {
-        self.entity_ids.retain(|&id| id != entity_id);
+        self.entities.retain(|&id| id != entity_id);
     }
     
     /// Get the visual color for rendering
@@ -63,14 +63,14 @@ impl Cell {
     }
 }
 
-/// The main simulation grid
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// 2D grid for the emotion contagion simulation
+#[derive(Clone, Debug)]
 pub struct Grid {
-    pub width: usize,
-    pub height: usize,
+    pub width: i32,
+    pub height: i32,
     pub cell_size: f32,
     pub cells: Vec<Vec<Cell>>,
-    pub total_emotion_intensity: HashMap<EmotionType, f32>,
+    pub total_emotion_intensity: f32,
 }
 
 impl Grid {
@@ -86,11 +86,11 @@ impl Grid {
         }
         
         Self {
-            width,
-            height,
+            width: width as i32,
+            height: height as i32,
             cell_size,
             cells,
-            total_emotion_intensity: HashMap::new(),
+            total_emotion_intensity: 0.0,
         }
     }
     
@@ -133,7 +133,7 @@ impl Grid {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 
-                if nx >= 0 && ny >= 0 && (nx as usize) < self.width && (ny as usize) < self.height {
+                if nx >= 0 && ny >= 0 && (nx as usize) < self.width as usize && (ny as usize) < self.height as usize {
                     neighbors.push((nx as usize, ny as usize));
                 }
             }
@@ -154,8 +154,8 @@ impl Grid {
         // Collect emotion spread operations to avoid borrowing issues
         let mut spread_operations = Vec::new();
         
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
                 if let Some(cell) = self.get_cell(x, y) {
                     if cell.is_barrier {
                         continue; // Barriers don't spread emotions
@@ -202,30 +202,21 @@ impl Grid {
     }
     
     /// Update entity positions in grid
-    pub fn update_entity_positions(&mut self, entities: &[Entity]) {
+    pub fn update_entity_positions(&mut self, entities: &HashMap<u32, Entity>) {
         // Clear all entity positions
         for row in &mut self.cells {
             for cell in row {
-                cell.entity_ids.clear();
+                cell.entities.clear();
             }
         }
         
-        // Add entities to their current cells
-        for entity in entities {
-            if entity.active {
+        // Re-add all active entities to their grid positions
+        for entity in entities.values() {
+            if entity.is_visible {
                 let (x, y) = self.world_to_grid(entity.position);
-                if x < self.width && y < self.height {
+                if x < self.width as usize && y < self.height as usize {
                     if let Some(cell) = self.get_cell_mut(x, y) {
                         cell.add_entity(entity.id);
-                        
-                        // Entities contribute their emotions to the cell
-                        for emotion in entity.emotions.emotions.values() {
-                            let cell_emotion = Emotion::new(
-                                emotion.emotion_type.clone(),
-                                emotion.intensity * 0.1, // Entities contribute a portion
-                            );
-                            cell.emotions.add_emotion(cell_emotion);
-                        }
                     }
                 }
             }
@@ -234,14 +225,12 @@ impl Grid {
     
     /// Update emotion statistics for display
     fn update_emotion_stats(&mut self) {
-        self.total_emotion_intensity.clear();
+        self.total_emotion_intensity = 0.0;
         
         for row in &self.cells {
             for cell in row {
                 for emotion in cell.emotions.emotions.values() {
-                    *self.total_emotion_intensity
-                        .entry(emotion.emotion_type.clone())
-                        .or_insert(0.0) += emotion.intensity;
+                    self.total_emotion_intensity += emotion.intensity;
                 }
             }
         }
@@ -249,8 +238,8 @@ impl Grid {
     
     /// Render the grid
     pub fn render(&self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
                 if let Some(cell) = self.get_cell(x, y) {
                     let world_pos = self.grid_to_world(x, y);
                     let color = cell.visual_color();
@@ -300,20 +289,51 @@ impl Grid {
     /// Create some interesting barrier patterns
     pub fn create_maze_pattern(&mut self) {
         // Create some walls to make emotion spreading more interesting
-        for y in (2..self.height - 2).step_by(4) {
-            for x in 2..self.width - 2 {
+        for y in (2..self.height as usize - 2).step_by(4) {
+            for x in 2..self.width as usize - 2 {
                 if x % 8 != 0 { // Leave gaps for flow
                     self.add_barrier(x, y);
                 }
             }
         }
         
-        for x in (2..self.width - 2).step_by(6) {
-            for y in 2..self.height - 2 {
+        for x in (2..self.width as usize - 2).step_by(6) {
+            for y in 2..self.height as usize - 2 {
                 if y % 6 != 0 { // Leave gaps for flow
                     self.add_barrier(x, y);
                 }
             }
+        }
+    }
+
+    /// Get total emotion intensity across all cells
+    pub fn get_total_emotion_intensity(&self) -> f32 {
+        self.total_emotion_intensity
+    }
+
+    /// Get count of cells with active emotions
+    pub fn get_active_cell_count(&self) -> usize {
+        self.cells.iter()
+            .map(|row| row.iter()
+                .filter(|cell| cell.emotions.get_total_intensity() > 0.01)
+                .count())
+            .sum()
+    }
+
+    /// Clear entity positions from all cells
+    pub fn clear_entity_positions(&mut self) {
+        for row in &mut self.cells {
+            for cell in row {
+                cell.entities.clear();
+            }
+        }
+    }
+
+    /// Add entity to its current cell position
+    pub fn add_entity_to_cell(&mut self, entity: &Entity) {
+        let (grid_x, grid_y) = self.world_to_grid(entity.position);
+        if let Some(cell) = self.get_cell_mut(grid_x, grid_y) {
+            cell.add_entity(entity.id);
         }
     }
 } 
