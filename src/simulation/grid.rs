@@ -1,463 +1,257 @@
 use macroquad::prelude::*;
+use crate::simulation::emotions::*;
 use std::collections::HashMap;
-use crate::simulation::{emotions::*, entity::Entity};
 
-/// A single cell in the simulation grid
-#[derive(Clone, Debug)]
-pub struct Cell {
-    pub x: i32,
-    pub y: i32,
-    pub emotions: EmotionSet,
-    pub entities: Vec<u32>,           // Entity IDs in this cell
-    pub background_color: Color,
-    pub is_barrier: bool,             // Blocks emotion spread
-}
-
-impl Cell {
-    pub fn new(position: (usize, usize)) -> Self {
-        Self {
-            x: position.0 as i32,
-            y: position.1 as i32,
-            emotions: EmotionSet::new(),
-            entities: Vec::new(),
-            background_color: Color::new(0.95, 0.95, 0.95, 1.0), // Light gray background
-            is_barrier: false,
-        }
-    }
-    
-    /// Update cell emotions over time
-    pub fn update(&mut self, delta_time: f32) {
-        self.emotions.update(delta_time);
-    }
-    
-    /// Add an entity to this cell
-    pub fn add_entity(&mut self, entity_id: u32) {
-        if !self.entities.contains(&entity_id) {
-            self.entities.push(entity_id);
-        }
-    }
-    
-    /// Remove an entity from this cell
-    pub fn remove_entity(&mut self, entity_id: u32) {
-        self.entities.retain(|&id| id != entity_id);
-    }
-    
-    /// Get the visual color for rendering
-    pub fn visual_color(&self) -> Color {
-        if self.is_barrier {
-            return Color::new(0.3, 0.3, 0.3, 1.0); // Dark gray for barriers
-        }
-        
-        if self.emotions.is_empty() {
-            self.background_color
-        } else {
-            // Blend background with emotion colors
-            let emotion_color = self.emotions.mixed_color();
-            Color::new(
-                self.background_color.r * 0.5 + emotion_color.r * 0.5,
-                self.background_color.g * 0.5 + emotion_color.g * 0.5,
-                self.background_color.b * 0.5 + emotion_color.b * 0.5,
-                1.0,
-            )
-        }
-    }
-}
-
-/// 2D grid for the emotion contagion simulation
-#[derive(Clone, Debug)]
-pub struct Grid {
-    pub width: i32,
-    pub height: i32,
+/// Simple emotion grid - matches the Python version exactly
+pub struct EmotionGrid {
+    pub width: usize,
+    pub height: usize,
     pub cell_size: f32,
-    pub cells: Vec<Vec<Cell>>,
-    pub total_emotion_intensity: f32,
+    pub grid: Vec<Vec<EmotionCell>>,
+    pub update_count: u32,
 }
 
-impl Grid {
-    /// Create a new grid
+impl EmotionGrid {
     pub fn new(width: usize, height: usize, cell_size: f32) -> Self {
-        let mut cells = Vec::with_capacity(height);
-        for y in 0..height {
-            let mut row = Vec::with_capacity(width);
-            for x in 0..width {
-                row.push(Cell::new((x, y)));
+        let mut grid = Vec::new();
+        for _ in 0..height {
+            let mut row = Vec::new();
+            for _ in 0..width {
+                row.push(EmotionCell::new());
             }
-            cells.push(row);
+            grid.push(row);
         }
-        
+
         Self {
-            width: width as i32,
-            height: height as i32,
+            width,
+            height,
             cell_size,
-            cells,
-            total_emotion_intensity: 0.0,
+            grid,
+            update_count: 0,
         }
     }
-    
-    /// Get cell at grid coordinates
-    pub fn get_cell(&self, x: usize, y: usize) -> Option<&Cell> {
-        self.cells.get(y)?.get(x)
-    }
-    
-    /// Get mutable cell at grid coordinates
-    pub fn get_cell_mut(&mut self, x: usize, y: usize) -> Option<&mut Cell> {
-        self.cells.get_mut(y)?.get_mut(x)
-    }
-    
-    /// Convert world position to grid coordinates
-    pub fn world_to_grid(&self, pos: Vec2) -> (usize, usize) {
-        (
-            (pos.x / self.cell_size) as usize,
-            (pos.y / self.cell_size) as usize,
-        )
-    }
-    
-    /// Convert grid coordinates to world position (center of cell)
-    pub fn grid_to_world(&self, x: usize, y: usize) -> Vec2 {
-        Vec2::new(
-            x as f32 * self.cell_size + self.cell_size / 2.0,
-            y as f32 * self.cell_size + self.cell_size / 2.0,
-        )
-    }
-    
-    /// Get neighboring cells
-    pub fn get_neighbors(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
-        let mut neighbors = Vec::new();
+
+    /// Add an emotion source at world coordinates (like the Python version)
+    pub fn add_emotion_source(&mut self, emotion: EmotionType, world_x: f32, world_y: f32) {
+        let grid_x = (world_x / self.cell_size) as usize;
+        let grid_y = (world_y / self.cell_size) as usize;
         
+        if grid_x < self.width && grid_y < self.height {
+            self.grid[grid_y][grid_x] = EmotionCell::new_with_emotion(emotion, 1.0);
+            println!("😊 Added {} source at ({}, {}) -> grid({}, {})", 
+                emotion.name(), world_x, world_y, grid_x, grid_y);
+        }
+    }
+
+    /// Count live neighbors for Conway's Game of Life (exactly like Python)
+    pub fn count_neighbors(&self, x: usize, y: usize) -> u8 {
+        let mut count = 0;
         for dy in -1..=1 {
             for dx in -1..=1 {
                 if dx == 0 && dy == 0 {
-                    continue; // Skip self
+                    continue;
                 }
-                
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 
-                if nx >= 0 && ny >= 0 && (nx as usize) < self.width as usize && (ny as usize) < self.height as usize {
-                    neighbors.push((nx as usize, ny as usize));
+                if nx >= 0 && ny >= 0 && 
+                   (nx as usize) < self.width && 
+                   (ny as usize) < self.height &&
+                   self.grid[ny as usize][nx as usize].alive {
+                    count += 1;
                 }
             }
         }
-        
-        neighbors
-    }
-    
-    /// Update all cells and spread emotions between neighbors
-    pub fn update(&mut self, delta_time: f32) {
-        // Update individual cells
-        for row in &mut self.cells {
-            for cell in row {
-                cell.update(delta_time);
-            }
-        }
-        
-        // Collect emotion spread operations to avoid borrowing issues
-        let mut spread_operations = Vec::new();
-        
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                if let Some(cell) = self.get_cell(x, y) {
-                    if cell.is_barrier {
-                        continue; // Barriers don't spread emotions
-                    }
-                    
-                    let neighbors = self.get_neighbors(x, y);
-                    
-                    for emotion in cell.emotions.emotions.values() {
-                        if emotion.intensity > 0.1 { // Only spread significant emotions
-                            for &(nx, ny) in &neighbors {
-                                if let Some(neighbor_cell) = self.get_cell(nx, ny) {
-                                    if !neighbor_cell.is_barrier {
-                                        let distance = ((x as f32 - nx as f32).powi(2) + 
-                                                       (y as f32 - ny as f32).powi(2)).sqrt();
-                                        let spread_amount = emotion.calculate_spread(distance);
-                                        
-                                        if spread_amount > 0.01 {
-                                            spread_operations.push((
-                                                nx,
-                                                ny,
-                                                emotion.emotion_type.clone(),
-                                                spread_amount,
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Apply spread operations
-        for (x, y, emotion_type, amount) in spread_operations {
-            if let Some(cell) = self.get_cell_mut(x, y) {
-                let spread_emotion = Emotion::new(emotion_type, amount);
-                cell.emotions.add_emotion(spread_emotion);
-            }
-        }
-        
-        // Update total emotion statistics
-        self.update_emotion_stats();
-    }
-    
-    /// Update entity positions in grid
-    pub fn update_entity_positions(&mut self, entities: &HashMap<u32, Entity>) {
-        // Clear all entity positions
-        for row in &mut self.cells {
-            for cell in row {
-                cell.entities.clear();
-            }
-        }
-        
-        // Re-add all active entities to their grid positions
-        for entity in entities.values() {
-            if entity.is_visible {
-                let (x, y) = self.world_to_grid(entity.position);
-                if x < self.width as usize && y < self.height as usize {
-                    if let Some(cell) = self.get_cell_mut(x, y) {
-                        cell.add_entity(entity.id);
-                        
-                        // CRITICAL FIX: Transfer entity emotions to grid cell
-                        let mut emotions_transferred = 0;
-                        for emotion in entity.emotions.emotions.values() {
-                            cell.emotions.add_emotion(emotion.clone());
-                            emotions_transferred += 1;
-                        }
-                        
-                        // Debug output for emotion sources
-                        if entity.id <= 3 && emotions_transferred > 0 {
-                            println!("🔍 DEBUG: Entity {} transferred {} emotions to cell ({}, {})", 
-                                entity.id, emotions_transferred, x, y);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Update emotion statistics for display
-    fn update_emotion_stats(&mut self) {
-        self.total_emotion_intensity = 0.0;
-        
-        for row in &self.cells {
-            for cell in row {
-                for emotion in cell.emotions.emotions.values() {
-                    self.total_emotion_intensity += emotion.intensity;
-                }
-            }
-        }
-    }
-    
-    /// Render the grid
-    pub fn render(&self) {
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                if let Some(cell) = self.get_cell(x, y) {
-                    let world_pos = self.grid_to_world(x, y);
-                    let color = cell.visual_color();
-                    
-                    draw_rectangle(
-                        world_pos.x - self.cell_size / 2.0,
-                        world_pos.y - self.cell_size / 2.0,
-                        self.cell_size,
-                        self.cell_size,
-                        color,
-                    );
-                    
-                    // Draw cell border for clarity
-                    draw_rectangle_lines(
-                        world_pos.x - self.cell_size / 2.0,
-                        world_pos.y - self.cell_size / 2.0,
-                        self.cell_size,
-                        self.cell_size,
-                        1.0,
-                        Color::new(0.8, 0.8, 0.8, 0.3),
-                    );
-                    
-                    // Show emotion intensity as text for cells with significant emotions
-                    if cell.emotions.total_intensity() > 0.3 {
-                        let intensity_text = format!("{:.1}", cell.emotions.total_intensity());
-                        draw_text(
-                            &intensity_text,
-                            world_pos.x - 10.0,
-                            world_pos.y + 5.0,
-                            10.0,
-                            BLACK,
-                        );
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Add barriers to create interesting patterns
-    pub fn add_barrier(&mut self, x: usize, y: usize) {
-        if let Some(cell) = self.get_cell_mut(x, y) {
-            cell.is_barrier = true;
-            cell.emotions = EmotionSet::new(); // Clear emotions from barriers
-        }
-    }
-    
-    /// Create some interesting barrier patterns
-    pub fn create_maze_pattern(&mut self) {
-        // Create some walls to make emotion spreading more interesting
-        for y in (2..self.height as usize - 2).step_by(4) {
-            for x in 2..self.width as usize - 2 {
-                if x % 8 != 0 { // Leave gaps for flow
-                    self.add_barrier(x, y);
-                }
-            }
-        }
-        
-        for x in (2..self.width as usize - 2).step_by(6) {
-            for y in 2..self.height as usize - 2 {
-                if y % 6 != 0 { // Leave gaps for flow
-                    self.add_barrier(x, y);
-                }
-            }
-        }
+        count
     }
 
-    /// Get total emotion intensity across all cells
-    pub fn get_total_emotion_intensity(&self) -> f32 {
-        self.total_emotion_intensity
-    }
-
-    /// Get count of cells with active emotions
-    pub fn get_active_cell_count(&self) -> usize {
-        self.cells.iter()
-            .map(|row| row.iter()
-                .filter(|cell| cell.emotions.get_total_intensity() > 0.01)
-                .count())
-            .sum()
-    }
-
-    /// Clear entity positions from all cells
-    pub fn clear_entity_positions(&mut self) {
-        for row in &mut self.cells {
-            for cell in row {
-                cell.entities.clear();
-            }
-        }
-    }
-
-    /// Add entity to its current cell position
-    pub fn add_entity_to_cell(&mut self, entity: &Entity) {
-        let (grid_x, grid_y) = self.world_to_grid(entity.position);
-        if let Some(cell) = self.get_cell_mut(grid_x, grid_y) {
-            cell.add_entity(entity.id);
-        }
-    }
-
-    /// Apply Sentinel's Conway's Game of Life rules for emotional contagion
-    pub fn update_emotional_contagion(&mut self, delta_time: f32) {
-        let mut next_grid_emotions: Vec<EmotionSet> = Vec::new();
-        
-        // Process each cell with Conway's rules
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                let mut new_emotions = EmotionSet::new();
-                
-                if let Some(current_cell) = self.get_cell(x, y) {
-                    // Get neighbor coordinates
-                    let neighbor_coords = self.get_neighbor_coords(x, y);
-                    
-                    // Process each emotion type separately
-                    for emotion_type in [EmotionType::Joy, EmotionType::Sadness, EmotionType::Anger, EmotionType::Anxiety, EmotionType::Love] {
-                        let rules = emotion_type.contagion_rules();
-                        let current_intensity = current_cell.emotions.get_intensity(&emotion_type);
-                        
-                        // Count neighbors with this emotion type
-                        let mut neighbor_count = 0;
-                        let mut transmission_strength = 0.0;
-                        
-                        for (nx, ny) in &neighbor_coords {
-                            if let Some(neighbor_cell) = self.get_cell(*nx, *ny) {
-                                let neighbor_intensity = neighbor_cell.emotions.get_intensity(&emotion_type);
-                                if neighbor_intensity > 0.1 {
-                                    neighbor_count += 1;
-                                    transmission_strength += neighbor_intensity * rules.transmission_rate;
-                                }
-                            }
-                        }
-                        
-                        let mut new_intensity = current_intensity;
-                        
-                        // Apply Conway's rules
-                        if current_intensity > 0.1 {
-                            // Existing emotion - check survival
-                            if neighbor_count < rules.survival_min || neighbor_count > rules.survival_max {
-                                new_intensity = 0.0; // Dies
-                            } else {
-                                // Survives - apply decay
-                                new_intensity = (current_intensity * (1.0 - rules.decay_rate * delta_time)).max(0.0);
-                            }
-                        } else {
-                            // Empty cell - check birth
-                            if neighbor_count >= rules.birth_neighbors {
-                                if transmission_strength > 0.0 && rand::gen_range(0.0, 1.0) < transmission_strength * delta_time {
-                                    new_intensity = (transmission_strength / neighbor_coords.len() as f32).min(5.0);
-                                }
-                            }
-                        }
-                        
-                        // Add emotion if intensity is significant
-                        if new_intensity > 0.1 {
-                            let emotion = Emotion::new(emotion_type.clone(), new_intensity);
-                            new_emotions.add_emotion(emotion);
-                        }
-                    }
-                    
-                    // Apply emotional interactions (Sentinel's mixing rules)
-                    new_emotions.apply_emotional_interactions();
-                }
-                
-                next_grid_emotions.push(new_emotions);
-            }
-        }
-        
-        // Update grid with new emotions
-        let mut emotion_index = 0;
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                if let Some(cell) = self.get_cell_mut(x, y) {
-                    cell.emotions = next_grid_emotions[emotion_index].clone();
-                    emotion_index += 1;
-                }
-            }
-        }
-        
-        // Update total intensity tracking
-        self.total_emotion_intensity = 0.0;
-        for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                if let Some(cell) = self.get_cell(x, y) {
-                    self.total_emotion_intensity += cell.emotions.get_total_intensity();
-                }
-            }
-        }
-    }
-
-    /// Get neighbor coordinates for Conway's Game of Life
-    fn get_neighbor_coords(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
-        let mut neighbors = Vec::new();
-        
-        for dx in -1i32..=1 {
-            for dy in -1i32..=1 {
+    /// Get emotions from neighboring cells (like Python version)
+    pub fn get_neighbor_emotions(&self, x: usize, y: usize) -> Vec<(EmotionType, f32)> {
+        let mut emotions = Vec::new();
+        for dy in -1..=1 {
+            for dx in -1..=1 {
                 if dx == 0 && dy == 0 {
-                    continue; // Skip the center cell
+                    continue;
                 }
-                
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 
-                if nx >= 0 && nx < self.width && ny >= 0 && ny < self.height {
-                    neighbors.push((nx as usize, ny as usize));
+                if nx >= 0 && ny >= 0 && 
+                   (nx as usize) < self.width && 
+                   (ny as usize) < self.height {
+                    let cell = &self.grid[ny as usize][nx as usize];
+                    if cell.alive && cell.emotion.is_some() && cell.intensity > 0.1 {
+                        emotions.push((cell.emotion.unwrap(), cell.intensity));
+                    }
+                }
+            }
+        }
+        emotions
+    }
+
+    /// Find the dominant emotion from neighbors (like Python version)
+    pub fn get_dominant_emotion(&self, emotions: &[(EmotionType, f32)]) -> Option<(EmotionType, f32)> {
+        if emotions.is_empty() {
+            return None;
+        }
+
+        let mut emotion_counts: HashMap<EmotionType, f32> = HashMap::new();
+        
+        for &(emotion, intensity) in emotions {
+            *emotion_counts.entry(emotion).or_insert(0.0) += intensity;
+        }
+
+        emotion_counts.into_iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+    }
+
+    /// Update the grid using Conway's Game of Life rules with emotion spreading
+    /// This is EXACTLY like the Python version
+    pub fn update(&mut self) -> GridStats {
+        let mut new_grid = Vec::new();
+        for _ in 0..self.height {
+            let mut row = Vec::new();
+            for _ in 0..self.width {
+                row.push(EmotionCell::new());
+            }
+            new_grid.push(row);
+        }
+
+        let mut stats = GridStats::new();
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let neighbors = self.count_neighbors(x, y);
+                let current_alive = self.grid[y][x].alive;
+                
+                // Conway's Game of Life rules - EXACTLY like the Python version
+                let alive = if current_alive {
+                    if neighbors < 2 || neighbors > 3 {
+                        stats.deaths += 1;
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    if neighbors == 3 {
+                        stats.births += 1;
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                // Emotion spreading
+                let mut emotion = self.grid[y][x].emotion;
+                let mut intensity = self.grid[y][x].intensity * 0.9; // Decay
+
+                if alive {
+                    let neighbor_emotions = self.get_neighbor_emotions(x, y);
+                    if !neighbor_emotions.is_empty() {
+                        if let Some((dominant_emotion, dominant_intensity)) = self.get_dominant_emotion(&neighbor_emotions) {
+                            emotion = Some(dominant_emotion);
+                            intensity = (intensity + dominant_intensity * 0.3).min(1.0);
+                            stats.emotion_spreads += 1;
+                        }
+                    }
+                }
+
+                new_grid[y][x] = EmotionCell {
+                    alive,
+                    emotion,
+                    intensity,
+                };
+
+                if alive {
+                    stats.alive_count += 1;
+                    if emotion.is_some() && intensity > 0.1 {
+                        stats.emotion_count += 1;
+                    }
+                }
+            }
+        }
+
+        self.grid = new_grid;
+        self.update_count += 1;
+
+        if stats.births > 0 || stats.deaths > 0 || stats.emotion_spreads > 0 {
+            println!("🔄 Conway Update #{}: {} births, {} deaths, {} emotion spreads", 
+                self.update_count, stats.births, stats.deaths, stats.emotion_spreads);
+        }
+
+        stats
+    }
+
+    /// Render the grid with emotion colors
+    pub fn render(&self) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let cell = &self.grid[y][x];
+                if cell.alive {
+                    let world_x = x as f32 * self.cell_size;
+                    let world_y = y as f32 * self.cell_size;
+                    let color = cell.display_color();
+                    
+                    if color.a > 0.0 { // Only draw if not transparent
+                        draw_rectangle(world_x, world_y, self.cell_size, self.cell_size, color);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Clear the entire grid
+    pub fn clear(&mut self) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                self.grid[y][x] = EmotionCell::new();
+            }
+        }
+        self.update_count = 0;
+    }
+
+    /// Randomize the grid with some emotion sources
+    pub fn randomize(&mut self) {
+        use ::rand::{Rng, thread_rng};
+        let mut rng = thread_rng();
+        
+        // Clear first
+        self.clear();
+        
+        // Create random alive cells (30% chance)
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if rng.gen_bool(0.3) {
+                    self.grid[y][x].alive = true;
+                }
+            }
+        }
+
+        // Add some random emotion sources
+        let emotions = EmotionType::all();
+        for _ in 0..10 {
+            let emotion = emotions[rng.gen_range(0..emotions.len())];
+            let x = rng.gen_range(0.0..self.width as f32 * self.cell_size);
+            let y = rng.gen_range(0.0..self.height as f32 * self.cell_size);
+            self.add_emotion_source(emotion, x, y);
+        }
+    }
+
+    /// Get statistics about the current grid state
+    pub fn get_stats(&self) -> GridStats {
+        let mut stats = GridStats::new();
+        
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let cell = &self.grid[y][x];
+                if cell.alive {
+                    stats.alive_count += 1;
+                    if cell.emotion.is_some() && cell.intensity > 0.1 {
+                        stats.emotion_count += 1;
+                    }
                 }
             }
         }
         
-        neighbors
+        stats
     }
-} 
+}

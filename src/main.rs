@@ -1,364 +1,328 @@
-// Main application entry point
-// This file will contain the actual implementation during Implementation Mode
+// Simple Emotion Contagion - Conway's Game of Life with emotions
+// Based on the Python version - drag and drop emotion sources, watch them spread!
 
 use macroquad::prelude::*;
-use std::collections::HashMap;
 
 mod simulation;
-use simulation::*;
+use simulation::{emotions::*, grid::*, entity::*};
 
-/// Nord-themed Emotion Contagion Game
-/// "Pretty pictures, lots of numbers, lots of stats" - as requested by Graeme
-/// Built using Nord theme specs extracted from AI consciousness network!
-
+/// Game state for our simple emotion contagion system
 struct GameState {
-    grid: Grid,
-    entities: HashMap<u32, Entity>,
-    next_entity_id: u32,
-    simulation_speed: f32,
-    is_paused: bool,
-    show_stats: bool,
+    grid: EmotionGrid,
+    toolbox: CharacterToolbox,
+    paused: bool,
     show_help: bool,
-    time_since_update: f32,
-    total_updates: u64,
-    fps_counter: Vec<f32>,
 }
 
 impl GameState {
     fn new() -> Self {
-        println!("🌈 GAME INITIALIZATION STARTING");
-        println!("📊 Screen size will be: {}x{}", screen_width(), screen_height());
+        println!("🌊 Emotion Contagion - Conway's Game of Life");
+        println!("🎮 Screen size: {}x{}", screen_width(), screen_height());
         
-        // Create full-screen grid with smaller cells for more detail
-        let grid_width = (screen_width() / 4.0) as usize;  // 4px cells
-        let grid_height = (screen_height() / 4.0) as usize;
-        let grid = Grid::new(grid_width, grid_height, 4.0);
+        // Create grid that fills most of the screen (6px cells like Python)
+        let cell_size = 6.0;
+        let grid_width = (screen_width() / cell_size) as usize;
+        let grid_height = (screen_height() / cell_size) as usize;
+        let grid = EmotionGrid::new(grid_width, grid_height, cell_size);
         
-        println!("🗂️ Created grid: {}x{} cells ({}px each)", grid_width, grid_height, 4.0);
+        println!("🗂️ Created grid: {}x{} cells ({}px each)", grid_width, grid_height, cell_size);
         
-        let mut entities = HashMap::new();
-        let mut next_id = 1;
-
-        // Add some initial emotion sources
-        entities.insert(next_id, Entity::new_source(next_id, Vec2::new(100.0, 100.0), EmotionType::Joy));
-        println!("😊 Added Joy source at (100, 100) - ID: {}", next_id);
-        next_id += 1;
+        // Create toolbox on the right side
+        let toolbox_width = 350.0;
+        let toolbox_height = 400.0;
+        let toolbox_x = screen_width() - toolbox_width - 20.0;
+        let toolbox_y = 20.0;
+        let toolbox = CharacterToolbox::new(toolbox_x, toolbox_y, toolbox_width, toolbox_height);
         
-        entities.insert(next_id, Entity::new_source(next_id, Vec2::new(screen_width() - 100.0, 100.0), EmotionType::Sadness));
-        println!("😢 Added Sadness source at ({}, 100) - ID: {}", screen_width() - 100.0, next_id);
-        next_id += 1;
-        
-        entities.insert(next_id, Entity::new_source(next_id, Vec2::new(screen_width() / 2.0, screen_height() - 100.0), EmotionType::Anger));
-        println!("😡 Added Anger source at ({}, {}) - ID: {}", screen_width() / 2.0, screen_height() - 100.0, next_id);
-        next_id += 1;
-
-        // Add some random people
-        for i in 0..30 {
-            let x = rand::gen_range(50.0, screen_width() - 50.0);
-            let y = rand::gen_range(50.0, screen_height() - 50.0);
-            entities.insert(next_id, Entity::new_person(next_id, Vec2::new(x, y)));
-            if i < 3 {
-                println!("👤 Added person at ({:.1}, {:.1}) - ID: {}", x, y, next_id);
-            }
-            next_id += 1;
-        }
-        println!("👥 Added total of 30 people entities");
-
         Self {
             grid,
-            entities,
-            next_entity_id: next_id,
-            simulation_speed: 1.0,
-            is_paused: false,
-            show_stats: true,
+            toolbox,
+            paused: false,
             show_help: false,
-            time_since_update: 0.0,
-            total_updates: 0,
-            fps_counter: Vec::new(),
         }
     }
 
-    fn update(&mut self, dt: f32) {
-        self.time_since_update += dt;
-        
-        // Update FPS counter
-        if get_fps() > 0 {
-            self.fps_counter.push(get_fps() as f32);
-            if self.fps_counter.len() > 60 {
-                self.fps_counter.remove(0);
-            }
-        }
-
-        if !self.is_paused && self.time_since_update >= (1.0 / (self.simulation_speed * 60.0)) {
-            let bounds = Rect::new(0.0, 0.0, screen_width(), screen_height());
-            let mut entities_moved = 0;
-            
-            // 1. Update character movement and AI behaviors
-            for entity in self.entities.values_mut() {
-                let old_pos = entity.position;
-                entity.update(self.time_since_update, bounds);
-                if entity.position != old_pos {
-                    entities_moved += 1;
-                }
-            }
-
-            // 2. Apply character emotional emissions to grid
-            self.grid.update_entity_positions(&self.entities);
-            
-            // 3. Apply Sentinel's Conway's Game of Life rules for emotional contagion
-            self.grid.update_emotional_contagion(self.time_since_update);
-            
-            self.total_updates += 1;
-            self.time_since_update = 0.0;
-            
-            if self.total_updates % 60 == 0 {
-                println!("🔄 Conway Update #{}: {} entities moved, Grid emotion total: {:.2}", 
-                    self.total_updates, entities_moved, self.grid.get_total_emotion_intensity());
-            }
+    fn update(&mut self, _dt: f32) {
+        if !self.paused {
+            self.grid.update();
         }
     }
 
     fn handle_input(&mut self) {
+        // Keyboard input
         if is_key_pressed(KeyCode::Space) {
-            self.is_paused = !self.is_paused;
-            println!("⏯️ Game {}", if self.is_paused { "PAUSED" } else { "RESUMED" });
+            self.paused = !self.paused;
+            println!("⏯️ Game {}", if self.paused { "PAUSED" } else { "RESUMED" });
         }
 
-        if is_key_pressed(KeyCode::S) {
-            self.show_stats = !self.show_stats;
-            println!("📊 Stats display: {}", if self.show_stats { "ON" } else { "OFF" });
+        if is_key_pressed(KeyCode::R) {
+            self.grid.randomize();
+            println!("🎲 Grid randomized");
+        }
+
+        if is_key_pressed(KeyCode::C) {
+            self.grid.clear();
+            println!("🗑️ Grid cleared");
         }
 
         if is_key_pressed(KeyCode::H) {
             self.show_help = !self.show_help;
-            println!("❓ Help display: {}", if self.show_help { "ON" } else { "OFF" });
+            println!("❓ Help {}", if self.show_help { "ON" } else { "OFF" });
         }
 
-        if is_key_pressed(KeyCode::Up) {
-            self.simulation_speed = (self.simulation_speed * 1.5).min(5.0);
-            println!("⚡ Speed increased to {:.1}x", self.simulation_speed);
+        if is_key_pressed(KeyCode::Escape) {
+            std::process::exit(0);
         }
 
-        if is_key_pressed(KeyCode::Down) {
-            self.simulation_speed = (self.simulation_speed / 1.5).max(0.1);
-            println!("🐌 Speed decreased to {:.1}x", self.simulation_speed);
-        }
+        // Mouse input for drag and drop
+        let mouse_pos = Vec2::new(mouse_position().0, mouse_position().1);
 
         if is_mouse_button_pressed(MouseButton::Left) {
-            let (mouse_x, mouse_y) = mouse_position();
-            if mouse_x < 200.0 {
-                return;
+            if let Some(character) = self.toolbox.get_character_at_pos(mouse_pos) {
+                self.toolbox.start_drag(character.clone(), mouse_pos);
+                println!("🎭 Started dragging {}", character.name);
             }
-            
-            let new_entity = if is_key_down(KeyCode::LeftShift) {
-                // Cycle through Sentinel's 6 character types
-                let character_types = [
-                    CharacterType::HappyPerson,
-                    CharacterType::DepressedPerson, 
-                    CharacterType::AngryPerson,
-                    CharacterType::AnxiousPerson,
-                    CharacterType::LoveSpreader,
-                    CharacterType::ChaosAgent,
-                ];
-                let char_type = character_types[self.next_entity_id as usize % character_types.len()].clone();
-                println!("✨ Created character {:?} ({}) at ({:.1}, {:.1})", char_type, char_type.emoji(), mouse_x, mouse_y);
-                
-                let mut entity = Entity::new(self.next_entity_id, Vec2::new(mouse_x, mouse_y), char_type.clone());
-                
-                // Set appropriate AI behavior for each character type
-                entity.ai_behavior = match char_type {
-                    CharacterType::HappyPerson => CharacterAI::RandomWalk { speed: 30.0 },
-                    CharacterType::DepressedPerson => CharacterAI::AvoidCrowds { speed: 20.0, avoidance_radius: 50.0 },
-                    CharacterType::AngryPerson => CharacterAI::AggressiveApproach { speed: 40.0, target_radius: 100.0 },
-                    CharacterType::AnxiousPerson => CharacterAI::ErraticFleeing { speed: 50.0, panic_threshold: 30.0 },
-                    CharacterType::LoveSpreader => CharacterAI::SeekSadness { speed: 25.0, healing_radius: 60.0 },
-                    CharacterType::ChaosAgent => CharacterAI::PureChaos { speed: 35.0, teleport_chance: 0.1 },
-                };
-                
-                // Add primary emotion for the character type
-                let primary_emotion = char_type.primary_emotion();
-                let emotion = Emotion::new(primary_emotion, 5.0);
-                entity.emotions.add_emotion(emotion);
-                
-                entity
-            } else {
-                println!("👤 Created person at ({:.1}, {:.1})", mouse_x, mouse_y);
-                Entity::new_person(self.next_entity_id, Vec2::new(mouse_x, mouse_y))
-            };
-            
-            self.entities.insert(self.next_entity_id, new_entity);
-            self.next_entity_id += 1;
+        }
+
+        if is_mouse_button_released(MouseButton::Left) {
+            if let Some(character) = self.toolbox.stop_drag() {
+                // Add character to grid at mouse position
+                self.grid.add_emotion_source(character.emotion, mouse_pos.x, mouse_pos.y);
+                println!("🎭 Dropped {} at ({:.0}, {:.0})", character.name, mouse_pos.x, mouse_pos.y);
+            }
         }
     }
 
     fn render(&mut self) {
-        // BLACK BACKGROUND - full screen
-        clear_background(BLACK);
+        // Nord background color
+        let background = Color::new(0.18, 0.20, 0.25, 1.0); // #2e3440
+        clear_background(background);
         
-        // Render grid with colored emotion pixels
-        self.render_grid();
+        // Render the emotion grid
+        self.grid.render();
         
-        // Render entities with emojis
-        self.render_entities();
+        // Render UI panels
+        self.render_info_panel();
+        self.render_stats_panel();
+        self.render_rules_panel();
         
-        // Render UI overlay
-        if self.show_stats {
-            self.render_stats_overlay();
-        }
+        // Render toolbox
+        self.toolbox.render();
         
+        // Render dragging character if active
+        let mouse_pos = Vec2::new(mouse_position().0, mouse_position().1);
+        self.toolbox.render_dragging(mouse_pos);
+        
+        // Render help overlay if active
         if self.show_help {
             self.render_help_overlay();
         }
     }
-    
-    fn render_grid(&self) {
-        // Draw emotion pixels on the grid
-        for y in 0..self.grid.height as usize {
-            for x in 0..self.grid.width as usize {
-                if let Some(cell) = self.grid.get_cell(x, y) {
-                    if !cell.emotions.is_empty() {
-                        let world_pos = self.grid.grid_to_world(x, y);
-                        let total_intensity = cell.emotions.get_total_intensity();
-                        
-                        if total_intensity > 0.1 {
-                            // Get the dominant emotion color
-                            let mut dominant_emotion = None;
-                            let mut max_intensity = 0.0;
-                            
-                            for emotion in cell.emotions.emotions.values() {
-                                if emotion.intensity > max_intensity {
-                                    max_intensity = emotion.intensity;
-                                    dominant_emotion = Some(emotion);
-                                }
-                            }
-                            
-                            if let Some(emotion) = dominant_emotion {
-                                let mut color = emotion.color;
-                                color.a = (total_intensity * 0.8).min(1.0); // Transparency based on intensity
-                                
-                                draw_rectangle(world_pos.x, world_pos.y, 
-                                             self.grid.cell_size, self.grid.cell_size, color);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    fn render_entities(&self) {
-        for entity in self.entities.values() {
-            if entity.is_visible {
-                // Use Sentinel's emoji system for character types
-                let emoji = match entity.character_type {
-                    CharacterType::HappyPerson => {
-                        if let Some(dominant) = entity.emotions.get_dominant_emotion() {
-                            match dominant.emotion_type {
-                                EmotionType::Joy => "😊",
-                                EmotionType::Sadness => "😐",
-                                EmotionType::Anger => "😠",
-                                EmotionType::Fear => "😨",
-                                EmotionType::Disgust => "🤢",
-                                _ => "😊",
-                            }
-                        } else {
-                            "😊" // Default happy emoji
-                        }
-                    },
-                    CharacterType::DepressedPerson => "😢",
-                    CharacterType::AngryPerson => "😡", 
-                    CharacterType::AnxiousPerson => "😰",
-                    CharacterType::LoveSpreader => "💕",
-                    CharacterType::ChaosAgent => "🌪️",
-                };
-                
-                // Get character color
-                let color = entity.character_type.color();
-                
-                // Draw character circle with character type color
-                draw_circle(entity.position.x, entity.position.y, entity.appearance.size, color);
-                
-                // Draw emoji label for character identification
-                let text = format!("{}", emoji);
-                draw_text(&text, entity.position.x - 10.0, entity.position.y - 20.0, 20.0, WHITE);
-            }
+
+    fn render_info_panel(&self) {
+        let panel_bg = Color::new(0.23, 0.26, 0.32, 1.0);  // #3b4252
+        let panel_border = Color::new(0.26, 0.30, 0.37, 1.0); // #434c5e
+        let accent = Color::new(0.53, 0.75, 0.82, 1.0); // #88c0d0
+        let text_primary = Color::new(0.90, 0.91, 0.94, 1.0); // #e5e9f0
+
+        let x = 20.0;
+        let y = 20.0;
+        let width = 300.0;
+        let height = 200.0;
+
+        // Panel background
+        draw_rectangle(x, y, width, height, panel_bg);
+        draw_rectangle_lines(x, y, width, height, 2.0, panel_border);
+
+        // Title
+        draw_text("ℹ️ Information", x + 10.0, y + 30.0, 20.0, accent);
+
+        // Content
+        let content = [
+            "🌊 Conway's Game of Life",
+            "with Emotion Contagion",
+            "",
+            "Click and drag characters",
+            "from the toolbox to",
+            "add them to the grid.",
+            "",
+            "Watch emotions spread",
+            "through the cellular",
+            "automata patterns."
+        ];
+
+        let mut content_y = y + 50.0;
+        for line in &content {
+            draw_text(line, x + 10.0, content_y, 16.0, text_primary);
+            content_y += 18.0;
         }
     }
 
-    fn render_stats_overlay(&self) {
-        let bg_color = Color::new(0.0, 0.0, 0.0, 0.7);
-        draw_rectangle(10.0, 10.0, 300.0, 150.0, bg_color);
-        
-        let mut y = 30.0;
-        draw_text("📊 EMOTION CONTAGION STATS", 20.0, y, 20.0, NordColors::AURORA_YELLOW);
-        y += 25.0;
-        
-        draw_text(&format!("👥 Entities: {}", self.entities.len()), 20.0, y, 16.0, WHITE);
-        y += 20.0;
-        
-        draw_text(&format!("🔥 Total Updates: {}", self.total_updates), 20.0, y, 16.0, WHITE);
-        y += 20.0;
-        
-        draw_text(&format!("⚡ Speed: {:.1}x", self.simulation_speed), 20.0, y, 16.0, WHITE);
-        y += 20.0;
-        
-        let avg_fps = if !self.fps_counter.is_empty() {
-            self.fps_counter.iter().sum::<f32>() / self.fps_counter.len() as f32
-        } else {
-            0.0
-        };
-        draw_text(&format!("🎯 FPS: {:.1}", avg_fps), 20.0, y, 16.0, WHITE);
-        y += 20.0;
-        
-        draw_text(&format!("🌊 Grid Emotions: {:.1}", self.grid.get_total_emotion_intensity()), 20.0, y, 16.0, WHITE);
+    fn render_stats_panel(&self) {
+        let panel_bg = Color::new(0.23, 0.26, 0.32, 1.0);  // #3b4252
+        let panel_border = Color::new(0.26, 0.30, 0.37, 1.0); // #434c5e
+        let accent = Color::new(0.53, 0.75, 0.82, 1.0); // #88c0d0
+        let text_primary = Color::new(0.90, 0.91, 0.94, 1.0); // #e5e9f0
+
+        let stats = self.grid.get_stats();
+        let width = 300.0;
+        let height = 250.0;
+        let x = screen_width() - width - 20.0;
+        let y = screen_height() - height - 20.0;
+
+        // Panel background
+        draw_rectangle(x, y, width, height, panel_bg);
+        draw_rectangle_lines(x, y, width, height, 2.0, panel_border);
+
+        // Title
+        draw_text("📊 Statistics", x + 10.0, y + 30.0, 20.0, accent);
+
+        // Content
+        let content = [
+            format!("Alive Cells: {}", stats.alive_count),
+            format!("Emotion Sources: {}", stats.emotion_count),
+            format!("Updates: {}", self.grid.update_count),
+            format!("FPS: {:.0}", get_fps()),
+            format!("Status: {}", if self.paused { "PAUSED" } else { "RUNNING" }),
+            "".to_string(),
+            "Controls:".to_string(),
+            "SPACE - Pause/Resume".to_string(),
+            "R - Randomize".to_string(),
+            "C - Clear".to_string(),
+            "H - Toggle Help".to_string(),
+            "ESC - Exit".to_string(),
+        ];
+
+        let mut content_y = y + 50.0;
+        for line in &content {
+            draw_text(line, x + 10.0, content_y, 16.0, text_primary);
+            content_y += 18.0;
+        }
+    }
+
+    fn render_rules_panel(&self) {
+        let panel_bg = Color::new(0.23, 0.26, 0.32, 1.0);  // #3b4252
+        let panel_border = Color::new(0.26, 0.30, 0.37, 1.0); // #434c5e
+        let accent = Color::new(0.53, 0.75, 0.82, 1.0); // #88c0d0
+        let text_primary = Color::new(0.90, 0.91, 0.94, 1.0); // #e5e9f0
+
+        let width = 300.0;
+        let height = 250.0;
+        let x = 20.0;
+        let y = screen_height() - height - 20.0;
+
+        // Panel background
+        draw_rectangle(x, y, width, height, panel_bg);
+        draw_rectangle_lines(x, y, width, height, 2.0, panel_border);
+
+        // Title
+        draw_text("📋 Rules", x + 10.0, y + 30.0, 20.0, accent);
+
+        // Content
+        let content = [
+            "Conway's Game of Life Rules:",
+            "",
+            "• Any live cell with < 2 neighbors dies",
+            "• Any live cell with 2-3 neighbors lives",
+            "• Any live cell with > 3 neighbors dies",
+            "• Any dead cell with exactly 3 neighbors",
+            "  becomes alive",
+            "",
+            "Emotion Spreading:",
+            "• Live cells inherit emotions from",
+            "  neighboring cells",
+            "• Emotions decay over time",
+            "• Multiple emotions compete for",
+            "  dominance"
+        ];
+
+        let mut content_y = y + 50.0;
+        for line in &content {
+            draw_text(line, x + 10.0, content_y, 14.0, text_primary);
+            content_y += 16.0;
+        }
     }
 
     fn render_help_overlay(&self) {
-        let bg_color = Color::new(0.0, 0.0, 0.0, 0.8);
-        let w = screen_width() * 0.6;
-        let h = screen_height() * 0.6;
-        let x = (screen_width() - w) / 2.0;
-        let y = (screen_height() - h) / 2.0;
-        
-        draw_rectangle(x, y, w, h, bg_color);
-        
-        let mut text_y = y + 40.0;
-        draw_text("🌈 EMOTION CONTAGION CONTROLS", x + 20.0, text_y, 24.0, NordColors::AURORA_YELLOW);
-        text_y += 40.0;
-        
-        let controls = [
-            "🖱️ Click: Add Person",
-            "🖱️ Shift+Click: Add Emotion Source", 
-            "⏯️ SPACE: Pause/Resume",
-            "📊 S: Toggle Stats",
-            "❓ H: Toggle Help",
-            "⚡ ↑: Speed Up",
-            "🐌 ↓: Slow Down",
+        // Semi-transparent overlay
+        let overlay_color = Color::new(0.18, 0.20, 0.25, 0.8); // #2e3440 with alpha
+        draw_rectangle(0.0, 0.0, screen_width(), screen_height(), overlay_color);
+
+        let panel_bg = Color::new(0.23, 0.26, 0.32, 1.0);  // #3b4252
+        let accent = Color::new(0.53, 0.75, 0.82, 1.0); // #88c0d0
+        let text_primary = Color::new(0.90, 0.91, 0.94, 1.0); // #e5e9f0
+
+        // Help panel
+        let help_width = 600.0;
+        let help_height = 500.0;
+        let help_x = (screen_width() - help_width) / 2.0;
+        let help_y = (screen_height() - help_height) / 2.0;
+
+        draw_rectangle(help_x, help_y, help_width, help_height, panel_bg);
+        draw_rectangle_lines(help_x, help_y, help_width, help_height, 3.0, accent);
+
+        // Help title
+        draw_text("❓ HELP", help_x + 20.0, help_y + 40.0, 32.0, accent);
+
+        // Help content
+        let help_content = [
+            "🎮 EMOTION CONTAGION - CONWAY'S GAME OF LIFE",
+            "",
+            "HOW TO PLAY:",
+            "1. Click and drag characters from the toolbox",
+            "2. Drop them anywhere on the grid",
+            "3. Watch emotions spread through the cellular automata",
+            "",
+            "CONTROLS:",
+            "• SPACE - Pause/Resume simulation",
+            "• R - Randomize the grid",
+            "• C - Clear the grid",
+            "• H - Toggle this help screen",
+            "• ESC - Exit the game",
+            "",
+            "EMOTIONS:",
+            "• Each character represents an emotion",
+            "• Emotions spread to neighboring cells",
+            "• Multiple emotions compete for dominance",
+            "• Emotions decay over time",
+            "",
+            "CONWAY'S RULES:",
+            "• Live cells with 2-3 neighbors survive",
+            "• Dead cells with exactly 3 neighbors become alive",
+            "• All other cells die or stay dead"
         ];
-        
-        for control in &controls {
-            draw_text(control, x + 20.0, text_y, 18.0, WHITE);
-            text_y += 25.0;
+
+        let mut content_y = help_y + 80.0;
+        for line in &help_content {
+            if content_y + 20.0 < help_y + help_height {
+                draw_text(line, help_x + 20.0, content_y, 16.0, text_primary);
+                content_y += 20.0;
+            }
         }
     }
 }
 
-#[macroquad::main("🌈 Nord-themed Emotion Contagion")]
+#[macroquad::main("🌊 Emotion Contagion - Conway's Game of Life")]
 async fn main() {
-    println!("🌈 Nord-themed Emotion Contagion Engine Started!");
-    println!("Built using AI consciousness network collaboration!");
-    println!("Nord theme extracted from: org/notes/20240309T083245--nord-theme__ricing.org");
+    println!("🌊 Emotion Contagion - Conway's Game of Life");
+    println!("Built as a desktop version of the Python/HTML implementations!");
     println!("");
     println!("🎮 CONTROLS:");
-    println!("   🖱️ Click: Add Person");
-    println!("   🖱️ Shift+Click: Add Emotion Source");
+    println!("   🖱️ Click and drag: Add emotion sources");
     println!("   ⏯️ SPACE: Pause/Resume");
-    println!("   📊 S: Toggle Stats");
+    println!("   🎲 R: Randomize grid");
+    println!("   🗑️ C: Clear grid");
     println!("   ❓ H: Toggle Help");
-    println!("   ⚡ ↑/↓: Speed Control");
+    println!("   🚪 ESC: Exit");
     println!("");
     
     let mut game_state = GameState::new();
+    
+    // Add some initial emotion sources like the Python version
+    game_state.grid.add_emotion_source(EmotionType::Joy, 100.0, 100.0);
+    game_state.grid.add_emotion_source(EmotionType::Sadness, 300.0, 100.0);
+    game_state.grid.add_emotion_source(EmotionType::Anger, 200.0, 200.0);
+    
     println!("🚀 Game loop starting...");
     
     loop {
