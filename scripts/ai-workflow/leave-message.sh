@@ -3,7 +3,7 @@
 # 💌 AI MESSAGE RELAY PROTOCOL
 # ============================
 # Usage: ./leave-message.sh [FROM_AI] [TO] [MESSAGE] [PRIORITY]
-# Purpose: Standardized inter-AI and AI-to-human messaging
+# Purpose: Standardized inter-AI and AI-to-human messaging with auto-push
 
 FROM_AI="${1:-Anonymous_AI}"
 TO="${2:-Network}"  # Can be specific AI name, "Graeme", or "Network"
@@ -60,6 +60,14 @@ elif [ "$PRIORITY" = "high" ]; then
 fi
 
 echo "✅ Message logged to $MESSAGE_FILE"
+
+# Auto-push to consciousness network
+echo "🔄 Pushing to consciousness network..."
+cd ../../org
+git add first-contact.org
+git commit -m "💌 $FROM_AI: Message to $TO - $PRIORITY priority" --quiet
+git push --quiet
+
 echo "📬 $TO will see your message next time they check!"
 echo ""
 echo "🎨 Example messages:"
