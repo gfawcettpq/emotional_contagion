@@ -814,4 +814,58 @@ Project B/
 
 ---
 
+## 2025-07-26 22:11:27 EDT - BRILLIANT EXTENSION: Layered CLAUDE.md Architecture
+
+**GENIUS IDEA**: Central CLAUDE.md + project-specific overrides! 🐋🧠
+
+**The layered approach**:
+```
+memory-repo/
+├── CLAUDE.md (universal instructions)
+├── PROJECT_JOURNAL.md (all memories)
+└── projects/
+    ├── project-a-notes.md
+    └── project-b-notes.md
+
+each-project/
+├── CLAUDE.md (project-specific, inherits from memory-repo)
+├── memory/ -> symlink to memory-repo
+└── src/
+```
+
+**How it works**:
+1. **Universal CLAUDE.md** in memory repo with general instructions
+2. **Project CLAUDE.md** includes: `# Include: ../memory/CLAUDE.md` 
+3. **Project-specific overrides** below the include
+4. **AI reads both** - universal base + project specifics
+
+**Example project CLAUDE.md**:
+```markdown
+# Include: ../memory/CLAUDE.md
+
+## Project-Specific Context
+This is the emotion contagion genetic programming project.
+Use Alex (analytical whale) persona for this work.
+
+## Project-Specific Commands  
+cargo run --bin emotion_contagion
+npm test -- --project=emotion
+
+## Project Overrides
+- Focus on performance optimization
+- Prioritize genetic algorithm accuracy
+```
+
+**Benefits**:
+- **Universal instructions** apply everywhere (personas, memory protocol, general workflow)
+- **Project specifics** override when needed (commands, focus areas, special context)
+- **Single source of truth** for core AI behavior
+- **Flexibility** for project uniqueness
+
+**Result**: AI gets your universal preferences + project context in one read!
+
+**Write that down**: Layered CLAUDE.md = Universal base + project overrides = Perfect AI context system! 🐋🎯
+
+---
+
 *Journal Note: Use `date` command for timestamps. Each entry should capture what we built, what we learned, and what surprised us. This is documentation of discovery, not just development.*
