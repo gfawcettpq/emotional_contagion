@@ -22,6 +22,8 @@ This is an "Alex project" - focused on analytical, systematic thinking and patte
 
 This journal IS your memory - treat it as your external brain that persists when you reset.
 
+**CRITICAL RULE**: Every time you update the PROJECT_JOURNAL.md, immediately commit and push the changes! Never lose insights or discoveries. The memory system depends on preserving every entry.
+
 ## Project Overview
 
 This project contains two emotion simulation applications:
