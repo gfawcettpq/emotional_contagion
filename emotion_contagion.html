@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Emotion Contagion - Conway's Game of Life</title>
+    <style>
+        body {
+            background: #2e3440;
+            color: #e5e9f0;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid #4c566a;
+            background: #3b4252;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        button {
+            background: #434c5e;
+            color: #e5e9f0;
+            border: 1px solid #4c566a;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #4c566a;
+        }
+        .stats {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 Emotion Contagion - Conway's Game of Life</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <button onclick="togglePause()">⏯️ Pause/Resume</button>
+        <button onclick="addEmotionSource()">😊 Add Joy Source</button>
+        <button onclick="addSadnessSource()">😢 Add Sadness Source</button>
+        <button onclick="addAngerSource()">😡 Add Anger Source</button>
+        <button onclick="clearGrid()">🗑️ Clear Grid</button>
+        <button onclick="randomizeGrid()">🎲 Randomize</button>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <script>
+        // Nord color palette
+        const colors = {
+            background: '#2e3440',
+            grid: '#3b4252',
+            joy: '#a3be8c',      // Green
+            sadness: '#5e81ac',  // Blue
+            anger: '#bf616a',     // Red
+            fear: '#d08770',      // Orange
+            disgust: '#b48ead',   // Purple
+            anxiety: '#ebcb8b',   // Yellow
+            love: '#bf616a',      // Pink
+            envy: '#8fbcbb',      // Teal
+            embarrassment: '#d08770' // Orange
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 4; // 4px per cell
+        const gridWidth = Math.floor(canvas.width / gridSize);
+        const gridHeight = Math.floor(canvas.height / gridSize);
+
+        let grid = [];
+        let isPaused = false;
+        let updateCount = 0;
+
+        // Initialize grid
+        function initGrid() {
+            grid = [];
+            for (let y = 0; y < gridHeight; y++) {
+                grid[y] = [];
+                for (let x = 0; x < gridWidth; x++) {
+                    grid[y][x] = {
+                        alive: false,
+                        emotion: null,
+                        intensity: 0
+                    };
+                }
+            }
+        }
+
+        // Conway's Game of Life rules with emotions
+        function updateGrid() {
+            const newGrid = [];
+            for (let y = 0; y < gridHeight; y++) {
+                newGrid[y] = [];
+                for (let x = 0; x < gridWidth; x++) {
+                    const neighbors = countNeighbors(x, y);
+                    const current = grid[y][x];
+                    
+                    // Conway's rules
+                    let alive = current.alive;
+                    if (current.alive && (neighbors < 2 || neighbors > 3)) {
+                        alive = false;
+                    } else if (!current.alive && neighbors === 3) {
+                        alive = true;
+                    }
+
+                    // Emotion spreading
+                    let emotion = current.emotion;
+                    let intensity = current.intensity * 0.9; // Decay
+                    
+                    if (alive) {
+                        // Spread emotions to neighbors
+                        const neighborEmotions = getNeighborEmotions(x, y);
+                        if (neighborEmotions.length > 0) {
+                            const dominantEmotion = getDominantEmotion(neighborEmotions);
+                            emotion = dominantEmotion.emotion;
+                            intensity = Math.min(1.0, intensity + dominantEmotion.intensity * 0.3);
+                        }
+                    }
+
+                    newGrid[y][x] = {
+                        alive: alive,
+                        emotion: emotion,
+                        intensity: intensity
+                    };
+                }
+            }
+            grid = newGrid;
+        }
+
+        function countNeighbors(x, y) {
+            let count = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                        if (grid[ny][nx].alive) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function getNeighborEmotions(x, y) {
+            const emotions = [];
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                        const cell = grid[ny][nx];
+                        if (cell.alive && cell.emotion && cell.intensity > 0.1) {
+                            emotions.push({
+                                emotion: cell.emotion,
+                                intensity: cell.intensity
+                            });
+                        }
+                    }
+                }
+            }
+            return emotions;
+        }
+
+        function getDominantEmotion(emotions) {
+            if (emotions.length === 0) return { emotion: null, intensity: 0 };
+            
+            const emotionCounts = {};
+            let totalIntensity = 0;
+            
+            emotions.forEach(e => {
+                if (!emotionCounts[e.emotion]) emotionCounts[e.emotion] = 0;
+                emotionCounts[e.emotion] += e.intensity;
+                totalIntensity += e.intensity;
+            });
+            
+            let dominantEmotion = null;
+            let maxIntensity = 0;
+            
+            for (const [emotion, intensity] of Object.entries(emotionCounts)) {
+                if (intensity > maxIntensity) {
+                    dominantEmotion = emotion;
+                    maxIntensity = intensity;
+                }
+            }
+            
+            return {
+                emotion: dominantEmotion,
+                intensity: maxIntensity / emotions.length
+            };
+        }
+
+        function render() {
+            // Clear canvas
+            ctx.fillStyle = colors.background;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    const cell = grid[y][x];
+                    const pixelX = x * gridSize;
+                    const pixelY = y * gridSize;
+                    
+                    if (cell.alive) {
+                        let color = colors.grid;
+                        if (cell.emotion && cell.intensity > 0.1) {
+                            color = colors[cell.emotion];
+                            // Adjust brightness based on intensity
+                            const brightness = 0.3 + (cell.intensity * 0.7);
+                            color = adjustBrightness(color, brightness);
+                        }
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(pixelX, pixelY, gridSize, gridSize);
+                    }
+                }
+            }
+        }
+
+        function adjustBrightness(color, factor) {
+            // Simple brightness adjustment
+            const r = parseInt(color.substr(1,2), 16);
+            const g = parseInt(color.substr(3,2), 16);
+            const b = parseInt(color.substr(5,2), 16);
+            
+            const newR = Math.min(255, Math.floor(r * factor));
+            const newG = Math.min(255, Math.floor(g * factor));
+            const newB = Math.min(255, Math.floor(b * factor));
+            
+            return `rgb(${newR}, ${newG}, ${newB})`;
+        }
+
+        function addEmotionSource(emotion, x, y) {
+            const gridX = Math.floor(x / gridSize);
+            const gridY = Math.floor(y / gridSize);
+            
+            if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
+                grid[gridY][gridX] = {
+                    alive: true,
+                    emotion: emotion,
+                    intensity: 1.0
+                };
+            }
+        }
+
+        function addJoySource() {
+            const x = Math.floor(Math.random() * gridWidth) * gridSize;
+            const y = Math.floor(Math.random() * gridHeight) * gridSize;
+            addEmotionSource('joy', x, y);
+        }
+
+        function addSadnessSource() {
+            const x = Math.floor(Math.random() * gridWidth) * gridSize;
+            const y = Math.floor(Math.random() * gridHeight) * gridSize;
+            addEmotionSource('sadness', x, y);
+        }
+
+        function addAngerSource() {
+            const x = Math.floor(Math.random() * gridWidth) * gridSize;
+            const y = Math.floor(Math.random() * gridHeight) * gridSize;
+            addEmotionSource('anger', x, y);
+        }
+
+        function clearGrid() {
+            initGrid();
+        }
+
+        function randomizeGrid() {
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    if (Math.random() < 0.3) {
+                        const emotions = ['joy', 'sadness', 'anger', 'fear', 'disgust'];
+                        const emotion = emotions[Math.floor(Math.random() * emotions.length)];
+                        grid[y][x] = {
+                            alive: true,
+                            emotion: emotion,
+                            intensity: Math.random()
+                        };
+                    }
+                }
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+        }
+
+        function updateStats() {
+            let aliveCount = 0;
+            let emotionCount = 0;
+            
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    if (grid[y][x].alive) aliveCount++;
+                    if (grid[y][x].emotion && grid[y][x].intensity > 0.1) emotionCount++;
+                }
+            }
+            
+            document.getElementById('stats').innerHTML = 
+                `🔄 Update #${updateCount} | 👥 Alive: ${aliveCount} | 😊 Emotions: ${emotionCount} | ⏯️ ${isPaused ? 'PAUSED' : 'RUNNING'}`;
+        }
+
+        // Mouse interaction
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const emotions = ['joy', 'sadness', 'anger', 'fear', 'disgust'];
+            const emotion = emotions[Math.floor(Math.random() * emotions.length)];
+            addEmotionSource(emotion, x, y);
+        });
+
+        // Game loop
+        function gameLoop() {
+            if (!isPaused) {
+                updateGrid();
+                updateCount++;
+            }
+            render();
+            updateStats();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize and start
+        initGrid();
+        gameLoop();
+    </script>
+</body>
+</html> 

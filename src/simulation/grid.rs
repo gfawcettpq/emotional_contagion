@@ -217,6 +217,19 @@ impl Grid {
                 if x < self.width as usize && y < self.height as usize {
                     if let Some(cell) = self.get_cell_mut(x, y) {
                         cell.add_entity(entity.id);
+                        
+                        // CRITICAL FIX: Transfer entity emotions to grid cell
+                        let mut emotions_transferred = 0;
+                        for emotion in entity.emotions.emotions.values() {
+                            cell.emotions.add_emotion(emotion.clone());
+                            emotions_transferred += 1;
+                        }
+                        
+                        // Debug output for emotion sources
+                        if entity.id <= 3 && emotions_transferred > 0 {
+                            println!("🔍 DEBUG: Entity {} transferred {} emotions to cell ({}, {})", 
+                                entity.id, emotions_transferred, x, y);
+                        }
                     }
                 }
             }
